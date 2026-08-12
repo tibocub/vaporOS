@@ -1,0 +1,22 @@
+config VAPOROS_VHELLO
+	tristate "vaporOS hello (proof that apps/external works)"
+	default n
+	---help---
+		A minimal vaporOS command, to prove the apps/external
+		mechanism reaches a custom, out-of-tree vaporOS app.
+
+if VAPOROS_VHELLO
+
+config VAPOROS_VHELLO_PROGNAME
+	string "Program name"
+	default "vhello"
+
+config VAPOROS_VHELLO_PRIORITY
+	int "vhello task priority"
+	default 100
+
+config VAPOROS_VHELLO_STACKSIZE
+	int "vhello stack size"
+	default DEFAULT_TASK_STACKSIZE
+
+endif
