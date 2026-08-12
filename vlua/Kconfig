@@ -1,0 +1,26 @@
+config VAPOROS_VLUA
+	tristate "vlua -- vaporOS's own Lua API host (print/read basics)"
+	depends on INTERPRETERS_LUA
+	default n
+	---help---
+		A small program that creates its own Lua state and exposes a
+		"vapor" table (vapor.print, vapor.read) to Lua scripts -- the
+		first slice of the ComputerCraft-style high-level API. Reuses
+		NuttX's own Lua interpreter sources (enable INTERPRETERS_LUA
+		first), doesn't bundle a second copy of Lua.
+
+if VAPOROS_VLUA
+
+config VAPOROS_VLUA_PROGNAME
+	string "Program name"
+	default "vlua"
+
+config VAPOROS_VLUA_PRIORITY
+	int "priority"
+	default 100
+
+config VAPOROS_VLUA_STACKSIZE
+	int "stack size"
+	default DEFAULT_TASK_STACKSIZE
+
+endif

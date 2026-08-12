@@ -1,0 +1,24 @@
+config VAPOROS_PORTABLE_CAT
+	tristate "portable_cat -- pure ISO C stdio portability test"
+	default n
+	---help---
+		Prints file contents (or stdin) to stdout. Uses nothing beyond
+		<stdio.h> -- not even getopt. A weaker portable-C tier than
+		portable_wc, on purpose: this is testing what the plainest
+		possible C program needs, not what's convenient to write.
+
+if VAPOROS_PORTABLE_CAT
+
+config VAPOROS_PORTABLE_CAT_PROGNAME
+	string "Program name"
+	default "vcat"
+
+config VAPOROS_PORTABLE_CAT_PRIORITY
+	int "priority"
+	default 100
+
+config VAPOROS_PORTABLE_CAT_STACKSIZE
+	int "stack size"
+	default DEFAULT_TASK_STACKSIZE
+
+endif

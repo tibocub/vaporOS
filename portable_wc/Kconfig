@@ -1,0 +1,19 @@
+config VAPOROS_PORTABLE_WC
+	tristate "portable_wc -- unmodified POSIX C portability test"
+	default n
+
+if VAPOROS_PORTABLE_WC
+
+config VAPOROS_PORTABLE_WC_PROGNAME
+	string "Program name"
+	default "wc"
+
+config VAPOROS_PORTABLE_WC_PRIORITY
+	int "priority"
+	default 100
+
+config VAPOROS_PORTABLE_WC_STACKSIZE
+	int "stack size"
+	default DEFAULT_TASK_STACKSIZE
+
+endif

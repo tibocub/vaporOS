@@ -67,8 +67,17 @@ cd nuttx
 
 # Our own apps default to "n" in their Kconfig (matching NuttX convention
 # for optional components) -- enable them explicitly rather than relying
-# on the board defconfig to know about a repo it's never seen.
+# on the board defconfig to know about a repo it's never seen. Same for
+# Lua: the in-tree interpreter itself needs no extra downloads, just the
+# option flipped on. (The optional Lua *modules* -- cjson, lfs, luasyslog,
+# luv -- each fetch their own tarball at build time and are left off here
+# deliberately, to keep this script's only dependency on the network the
+# initial git clones.)
 kconfig-tweak --enable CONFIG_VAPOROS_VHELLO
+kconfig-tweak --enable CONFIG_VAPOROS_PORTABLE_WC
+kconfig-tweak --enable CONFIG_INTERPRETERS_LUA
+kconfig-tweak --enable CONFIG_VAPOROS_VLUA
+kconfig-tweak --enable CONFIG_VAPOROS_PORTABLE_CAT
 make olddefconfig
 
 make -j"$(nproc)"
