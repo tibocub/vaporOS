@@ -127,6 +127,21 @@ if [ "$BOARD_CONFIG" = "nxterm" ]; then
   kconfig-tweak --enable CONFIG_NXTERM
   kconfig-tweak --enable CONFIG_EXAMPLES_NXTERM
   kconfig-tweak --set-str CONFIG_INIT_ENTRYPOINT nxterm_main
+  # NxTerm's own VT100 support is genuinely minimal -- its source
+  # comment says so directly: "a placeholder for a future, more
+  # complete VT100 emulation." It recognizes exactly one escape
+  # sequence (erase-to-end-of-line). NSH's default line editor on a
+  # non-DEFAULT_SMALL config is CLE, which assumes a real VT100
+  # terminal and uses cursor hide/show + full-line-clear sequences
+  # for smooth redraws -- confirmed (via grep on the compiled objects)
+  # that those sequences come from cle.c specifically, not from
+  # readline. Anything NxTerm doesn't recognize gets dumped back out
+  # as literal text, which is exactly the garbled output this
+  # produces. NSH_READLINE is NuttX's own "minimal readline()" --
+  # backspace-only editing, no cursor tricks -- and is the documented
+  # right choice for a limited-VT100 terminal. This is a choice
+  # option, so enabling it deselects CLE automatically.
+  kconfig-tweak --enable CONFIG_NSH_READLINE
 else
   ./tools/configure.sh sim:$BOARD_CONFIG
 fi
