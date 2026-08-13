@@ -11,5 +11,6 @@ MODULE    = $(CONFIG_VAPOROS_VLUA)
 CFLAGS += ${INCDIR_PREFIX}$(APPDIR)/interpreters/lua/lua
 
 MAINSRC = vlua_main.c
+CSRCS = vapor_core.c
 
 include $(APPDIR)/Application.mk
