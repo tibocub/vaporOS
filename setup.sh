@@ -117,6 +117,17 @@ kconfig-tweak --enable CONFIG_INTERPRETERS_LUA
 # do with our own code. Enabling it directly avoids relying on some other
 # option happening to pull it in first.
 kconfig-tweak --enable CONFIG_NSH_LIBRARY
+# nsh_script.c calls readline_fd() unconditionally, but its prototype
+# in apps/include/system/readline.h is wrapped entirely in #ifdef
+# CONFIG_SYSTEM_READLINE -- while the .c file implementing it still
+# gets built regardless. Same shape of gap as NSH_LIBRARY above: an
+# implementation that exists without the config flag needed to see its
+# own declaration. Confirmed via a full clean build to LD: nuttx with
+# just this one flag added; whether your compiler treats the resulting
+# implicit-declaration as a warning or a hard error depends on its
+# version (GCC 14+ defaults to erroring on this), so this may build
+# fine for one person and fail for another without it.
+kconfig-tweak --enable CONFIG_SYSTEM_READLINE
 kconfig-tweak --enable CONFIG_VAPOROS_VLUA
 kconfig-tweak --enable CONFIG_VAPOROS_PORTABLE_CAT
 # NuttX's own tiny vi work-alike (apps/system/vi) -- no external
