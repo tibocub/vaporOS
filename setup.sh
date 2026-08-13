@@ -1,11 +1,21 @@
 #!/usr/bin/env bash
 #
-# vaporOS-nuttx/setup.sh
+# vaporOS-nuttx/setup.sh [board-config]
 #
 # Sets up a NuttX workspace next to this repo, wires this repo in as
 # apps/external (see NuttX's apps/README.md, "Adding Applications
-# Outside the Apps Directory"), and builds the sim:nsh target so you
-# can boot into a real NuttX shell with zero real hardware.
+# Outside the Apps Directory"), and builds the given sim:<board-config>
+# target so you can boot into a real NuttX shell with zero real hardware.
+#
+# board-config defaults to "nsh" (the everyday text-console target).
+# Each board config is a genuinely separate build -- NuttX doesn't have
+# "one image, graphics toggle at runtime" -- so building the graphical
+# target is a real second build, not a flag on the first one:
+#
+#   ./setup.sh          # sim:nsh  -- the usual text console
+#   ./setup.sh nx11     # sim:nx11 -- opens a real X11 window on your
+#                        #            desktop instead (Linux/Mac with
+#                        #            XQuartz/Windows with an X server)
 #
 # Layout after running this (matches NuttX's own expected workspace
 # shape -- nuttx/ and apps/ as siblings):
@@ -21,6 +31,8 @@
 # after bumping to confirm the build still succeeds.
 
 set -euo pipefail
+
+BOARD_CONFIG="${1:-nsh}"
 
 NUTTX_COMMIT="a0fcbb7957e916d03e346de9bdf5d1be2dd4ccd0"
 APPS_COMMIT="569d8f31dbd7934a7e20606db311fcfb1e86b59d"
@@ -55,6 +67,13 @@ if command -v apt-get >/dev/null 2>&1; then
   command -v kconfig-tweak >/dev/null 2>&1 || MISSING="$MISSING kconfig-frontends"
   command -v genromfs      >/dev/null 2>&1 || MISSING="$MISSING genromfs"
   command -v xxd           >/dev/null 2>&1 || MISSING="$MISSING xxd"
+  # X11 dev headers, only needed for graphical (nx11-style) targets --
+  # confirmed required (Xlib.h, link libs) when actually building one.
+  case "$BOARD_CONFIG" in
+    nx11|lvgl_fb)
+      dpkg -s libx11-dev >/dev/null 2>&1 || MISSING="$MISSING libx11-dev"
+      ;;
+  esac
   if [ -n "$MISSING" ]; then
     echo "Installing missing build tools:$MISSING"
     sudo apt-get update -qq
@@ -63,7 +82,19 @@ if command -v apt-get >/dev/null 2>&1; then
 fi
 
 cd nuttx
-./tools/configure.sh sim:nsh
+
+# If this workspace was configured before (e.g. before a new app
+# directory like portable_wc/ existed, or for a different board
+# config), the Kconfig aggregation under apps/external/ won't have
+# picked it up -- configure.sh alone doesn't force that rescan.
+# distclean guarantees a fresh one. Harmless/no-op on a truly first
+# run, since there's nothing to clean yet.
+if [ -f .config ]; then
+  echo "Existing configuration found -- running distclean so new apps are picked up"
+  make distclean
+fi
+
+./tools/configure.sh sim:$BOARD_CONFIG
 
 # Our own apps default to "n" in their Kconfig (matching NuttX convention
 # for optional components) -- enable them explicitly rather than relying
@@ -76,8 +107,23 @@ cd nuttx
 kconfig-tweak --enable CONFIG_VAPOROS_VHELLO
 kconfig-tweak --enable CONFIG_VAPOROS_PORTABLE_WC
 kconfig-tweak --enable CONFIG_INTERPRETERS_LUA
+# INTERPRETERS_LUA (via its CORELIBS suboption) does `select SYSTEM_SYSTEM`,
+# which itself `depends on NSH_LIBRARY` -- and Kconfig's `select` bypasses
+# `depends on` checks rather than satisfying them. On a board config that
+# doesn't already enable NSH_LIBRARY for its own reasons (nx11 is the one
+# we've hit; likely any non-nsh config), that mismatch leaves apps/system/
+# system.c compiling without a real declaration of waitpid() in scope,
+# producing a confusing "implicit declaration" error that has nothing to
+# do with our own code. Enabling it directly avoids relying on some other
+# option happening to pull it in first.
+kconfig-tweak --enable CONFIG_NSH_LIBRARY
 kconfig-tweak --enable CONFIG_VAPOROS_VLUA
 kconfig-tweak --enable CONFIG_VAPOROS_PORTABLE_CAT
+# NuttX's own tiny vi work-alike (apps/system/vi) -- no external
+# dependency (termcurses is another in-tree NuttX module), no reason
+# to port kilo/mle when this already exists and already fits the same
+# embedded constraints they'd target.
+kconfig-tweak --enable CONFIG_SYSTEM_VI
 make olddefconfig
 
 make -j"$(nproc)"
