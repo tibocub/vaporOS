@@ -12,10 +12,32 @@
 # "one image, graphics toggle at runtime" -- so building the graphical
 # target is a real second build, not a flag on the first one:
 #
-#   ./setup.sh          # sim:nsh  -- the usual text console
-#   ./setup.sh nx11     # sim:nx11 -- opens a real X11 window on your
-#                        #            desktop instead (Linux/Mac with
-#                        #            XQuartz/Windows with an X server)
+#   ./setup.sh          # sim:nsh    -- the usual text console
+#   ./setup.sh nx11     # sim:nx11   -- opens a real X11 window on your
+#                        #              desktop instead (Linux/Mac with
+#                        #              XQuartz/Windows with an X server),
+#                        #              but only runs NuttX's static
+#                        #              nx graphics demo, not a shell
+#   ./setup.sh nxterm   # sim:nx11 base, with the demo swapped for a
+#                        #              real NSH session rendered into
+#                        #              that same X11 window (NxTerm) --
+#                        #              see the note on keyboard input
+#                        #              below before expecting this to
+#                        #              feel like a normal terminal
+#
+# nxterm isn't an upstream NuttX board config (no sim:nxterm exists) --
+# it's assembled here from sim:nx11's base (X11 framebuffer, NX) with
+# NuttX's own apps/examples/nxterm swapped in for the static demo app,
+# giving a real nsh_consolemain() session -- all our own vaporOS-nuttx
+# apps included -- with its *output* rendered into the X11 window.
+#
+# IMPORTANT, confirmed from NuttX's own nxterm documentation: keyboard
+# INPUT is not redirected by default. You still type in the terminal
+# you launched ./nuttx from; only the text output appears in the X11
+# window. This is a real, documented property of NuttX's own example,
+# not something broken in this setup. True in-window typing needs
+# CONFIG_NXTERM_NXKBDIN plus real X11 keyboard-event forwarding, which
+# is a separate, less-certain undertaking -- not attempted here.
 #
 # Layout after running this (matches NuttX's own expected workspace
 # shape -- nuttx/ and apps/ as siblings):
@@ -70,7 +92,7 @@ if command -v apt-get >/dev/null 2>&1; then
   # X11 dev headers, only needed for graphical (nx11-style) targets --
   # confirmed required (Xlib.h, link libs) when actually building one.
   case "$BOARD_CONFIG" in
-    nx11|lvgl_fb)
+    nx11|nxterm|lvgl_fb)
       dpkg -s libx11-dev >/dev/null 2>&1 || MISSING="$MISSING libx11-dev"
       ;;
   esac
@@ -94,7 +116,20 @@ if [ -f .config ]; then
   make distclean
 fi
 
-./tools/configure.sh sim:$BOARD_CONFIG
+if [ "$BOARD_CONFIG" = "nxterm" ]; then
+  ./tools/configure.sh sim:nx11
+  # Swap NuttX's static graphics demo for a real NSH session rendered
+  # into the same X11 window -- apps/examples/nxterm's own main()
+  # calls nsh_consolemain() internally, so this is genuinely full NSH,
+  # not a toy. Confirmed via a clean build to LD: nuttx with exactly
+  # this combination.
+  kconfig-tweak --disable CONFIG_EXAMPLES_NX
+  kconfig-tweak --enable CONFIG_NXTERM
+  kconfig-tweak --enable CONFIG_EXAMPLES_NXTERM
+  kconfig-tweak --set-str CONFIG_INIT_ENTRYPOINT nxterm_main
+else
+  ./tools/configure.sh sim:$BOARD_CONFIG
+fi
 
 # Our own apps default to "n" in their Kconfig (matching NuttX convention
 # for optional components) -- enable them explicitly rather than relying
