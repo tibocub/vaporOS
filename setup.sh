@@ -185,6 +185,10 @@ kconfig-tweak --enable CONFIG_VAPOROS_PORTABLE_CAT
 # to port kilo/mle when this already exists and already fits the same
 # embedded constraints they'd target.
 kconfig-tweak --enable CONFIG_SYSTEM_VI
+# Milestone-1 proof for docs/vaporterm.md -- not a real vaporOS command,
+# but it needs to build so `vtermtest` stays available without a manual
+# kconfig-tweak every time this script runs.
+kconfig-tweak --enable CONFIG_VAPOROS_VTERMTEST
 make olddefconfig
 
 make -j"$(nproc)"

@@ -1,0 +1,26 @@
+config VAPOROS_VTERMTEST
+	tristate "vtermtest -- libvterm Milestone 1: build+parse smoke test"
+	default n
+	---help---
+		Vendored libvterm (MIT, Paul Evans) compiled through the real
+		NuttX app pipeline, plus a small test that feeds it a string
+		containing real ANSI escape sequences and prints back what it
+		parsed. Milestone 1 of docs/vaporterm.md -- proves the library
+		itself is portable here before any NX rendering work is built
+		on top of it.
+
+if VAPOROS_VTERMTEST
+
+config VAPOROS_VTERMTEST_PROGNAME
+	string "Program name"
+	default "vtermtest"
+
+config VAPOROS_VTERMTEST_PRIORITY
+	int "priority"
+	default 100
+
+config VAPOROS_VTERMTEST_STACKSIZE
+	int "stack size"
+	default DEFAULT_TASK_STACKSIZE
+
+endif

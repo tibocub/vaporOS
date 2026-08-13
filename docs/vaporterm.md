@@ -103,9 +103,26 @@ that's already well-understood:
 
 ## Milestones
 
-1. Vendor `libvterm`, confirm it builds standalone against the NuttX
-   toolchain (no NX integration yet) -- proves the library itself is
-   portable here before we build anything on top of it.
+1. **Done.** Vendored `libvterm` (`vterm/libvterm/`, MIT, Paul Evans,
+   from the Neovim-lineage source -- not the smaller `untodesu`
+   reimplementation, since only this one has the Screen API the plan
+   above depends on). Built through the real NuttX app pipeline (not
+   just host gcc) via a small test app (`vterm/vtermtest_main.c`) that
+   feeds it a string containing real ANSI escapes and checks what it
+   parsed back. Result, run for real in NSH:
+
+   ```
+   nsh> vtermtest
+   vtermtest: input  = "Hello, <bold>vaporOS<reset> terminal!"
+   vtermtest: parsed = "Hello, vaporOS terminal!"
+   vtermtest: PASS -- escape sequences consumed correctly, not leaked
+   as literal text
+   ```
+
+   Confirms the exact bug class that started this investigation
+   (NxTerm leaking unrecognized escapes as literal text) does not
+   recur here.
+
 2. Minimal NX window + `damage`/`movecursor` callbacks rendering
    static test content (not real NSH output yet) -- proves the
    render pipeline independent of NSH wiring.

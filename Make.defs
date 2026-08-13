@@ -2,3 +2,4 @@ CONFIGURED_APPS += $(APPDIR)/external/vhello
 CONFIGURED_APPS += $(APPDIR)/external/portable_wc
 CONFIGURED_APPS += $(APPDIR)/external/vlua
 CONFIGURED_APPS += $(APPDIR)/external/portable_cat
+CONFIGURED_APPS += $(APPDIR)/external/vterm
