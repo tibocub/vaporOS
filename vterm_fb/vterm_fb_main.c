@@ -217,11 +217,23 @@ int main(int argc, FAR char *argv[])
 
   vterm_input_write(vt, test, strlen(test));
 
-  printf("vterm_fb: done, static content rendered to framebuffer\n");
+  printf("vterm_fb: static content rendered -- window stays open, "
+         "Ctrl+C to stop\n");
 
-  vterm_free(vt);
-  munmap(g_st.fbmem, g_st.pinfo.fblen);
-  close(g_st.fd);
+  /* Deliberately not closing g_st.fd or returning here. fb_close()
+   * (drivers/video/fb.c) calls the video vtable's close callback when
+   * the last open reference goes away, and on this sim target that's
+   * sim_closewindow() -> sim_x11closewindow() -- it tears the X11
+   * window down. A display surface is meant to stay up for the whole
+   * session, the same way any real terminal application holds its
+   * display open for as long as it's running, so we hold the fd open
+   * and just idle here instead of returning.
+   */
+
+  for (; ; )
+    {
+      sleep(3600);
+    }
 
   return 0;
 }
