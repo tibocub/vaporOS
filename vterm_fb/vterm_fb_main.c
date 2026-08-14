@@ -1,14 +1,17 @@
 /*
- * Milestone 2 of docs/vaporterm.md: minimal direct-framebuffer
- * rendering, no NX window/compositor involved. Opens /dev/fb0
- * directly (same mechanics as apps/examples/fbcon), feeds libvterm
- * a static string, and on each damage callback blits the affected
- * cells' glyphs straight into the mmap'd framebuffer via nxfonts.
+ * Milestone 3 of docs/vaporterm.md: a real NSH session rendered into
+ * the framebuffer via libvterm, not static test content anymore.
  *
- * Not real NSH output yet (that's Milestone 3) -- this proves the
- * render pipeline in isolation: open fb -> mmap -> vterm parses text
- * -> damage callback -> nxfonts glyph -> pixels written to real
- * framebuffer memory.
+ * Registers our own character device (/dev/vaporterm0) -- same idiom
+ * NuttX's own NXTERM uses, not a pipe/separate-task scheme. Its write
+ * callback feeds bytes straight into libvterm and triggers the same
+ * damage-driven rendering Milestone 2 already proved works. NSH's
+ * stdout/stderr get redirected to that device (dup2, same exact
+ * pattern apps/examples/nxterm_main.c uses); stdin is deliberately
+ * left untouched -- keyboard input still comes from wherever this
+ * process's own stdin is (the host terminal, on sim), matching the
+ * "v1 keyboard" stage in vaporterm.md. True in-window typing is later
+ * work, not this milestone.
  */
 
 #include <nuttx/config.h>
@@ -17,19 +20,24 @@
 #include <string.h>
 #include <fcntl.h>
 #include <unistd.h>
+#include <errno.h>
 #include <sys/ioctl.h>
 #include <sys/mman.h>
 
+#include <nuttx/fs/fs.h>
 #include <nuttx/video/fb.h>
 #include <nuttx/nx/nxfonts.h>
 
 #include "vterm.h"
+#include "nshlib/nshlib.h"
 
 /* Matches the 800x600 display at 10x20 cells (X11_MISC_FIXED_10X20) --
  * 80x30 is also the classic standard terminal size, not a coincidence
  * worth losing: chosen because it lines up exactly, not picked first. */
 #define VTERM_ROWS   30
 #define VTERM_COLS   80
+
+#define VAPORTERM_DEVPATH "/dev/vaporterm0"
 
 struct vterm_fb_state
 {
@@ -39,14 +47,11 @@ struct vterm_fb_state
   struct fb_planeinfo_s pinfo;
   NXHANDLE font;
   FAR const struct nx_font_s *fontset;
+  VTerm *vt;
   VTermScreen *screen;
 };
 
 static struct vterm_fb_state g_st;
-
-/* One character cell's pixel footprint. NXFONT_SANS23X27's own name
- * says roughly what to expect; mxwidth/mxheight from the font metrics
- * is the actual source of truth. */
 
 static uint16_t g_cellw;
 static uint16_t g_cellh;
@@ -131,9 +136,44 @@ static VTermScreenCallbacks g_callbacks =
   .damage = on_damage
 };
 
+/****************************************************************************
+ * /dev/vaporterm0 character device -- NSH's stdout/stderr get
+ * redirected here. Every write() (i.e. every printf/puts NSH does)
+ * lands in vaporterm_write(), which feeds libvterm and lets its
+ * damage callback drive the same rendering Milestone 2 proved works.
+ * Synchronous, on purpose -- same idiom NXTERM itself uses, no
+ * separate task or pipe needed.
+ ****************************************************************************/
+
+static ssize_t vaporterm_write(FAR struct file *filep,
+                                FAR const char *buffer, size_t buflen)
+{
+  vterm_input_write(g_st.vt, buffer, buflen);
+  return buflen;
+}
+
+static int vaporterm_open(FAR struct file *filep)
+{
+  return OK;
+}
+
+static int vaporterm_close(FAR struct file *filep)
+{
+  return OK;
+}
+
+static const struct file_operations g_vaporterm_fops =
+{
+  vaporterm_open,   /* open */
+  vaporterm_close,  /* close */
+  NULL,             /* read */
+  vaporterm_write,  /* write */
+};
+
 int main(int argc, FAR char *argv[])
 {
   int ret;
+  int fd;
 
   g_st.fd = open("/dev/fb0", O_RDWR);
 
@@ -160,10 +200,6 @@ int main(int argc, FAR char *argv[])
       close(g_st.fd);
       return 1;
     }
-
-  printf("vterm_fb: fb is %dx%d, %d bpp, stride %d\n",
-         g_st.vinfo.xres, g_st.vinfo.yres, g_st.pinfo.bpp,
-         g_st.pinfo.stride);
 
   if (g_st.pinfo.bpp != 32)
     {
@@ -197,47 +233,57 @@ int main(int argc, FAR char *argv[])
   g_cellw = g_st.fontset->mxwidth;
   g_cellh = g_st.fontset->mxheight;
 
-  printf("vterm_fb: font cell is %dx%d px, screen fits ~%dx%d cells\n",
-         g_cellw, g_cellh, g_st.vinfo.xres / g_cellw,
-         g_st.vinfo.yres / g_cellh);
-
-  /* Clear the whole framebuffer to black first. */
-
   memset(g_st.fbmem, 0, g_st.pinfo.fblen);
 
-  VTerm *vt = vterm_new(VTERM_ROWS, VTERM_COLS);
-  vterm_set_utf8(vt, 1);
+  g_st.vt = vterm_new(VTERM_ROWS, VTERM_COLS);
+  vterm_set_utf8(g_st.vt, 1);
 
-  g_st.screen = vterm_obtain_screen(vt);
+  g_st.screen = vterm_obtain_screen(g_st.vt);
   vterm_screen_set_callbacks(g_st.screen, &g_callbacks, NULL);
   vterm_screen_reset(g_st.screen, 1);
 
-  const char test[] =
-    "vaporOS -- Milestone 2\r\n"
-    "libvterm -> nxfonts -> /dev/fb0, no NX window\r\n"
-    "\r\n"
-    "If you can read this on a real screen, the pipeline works.";
+  ret = register_driver(VAPORTERM_DEVPATH, &g_vaporterm_fops, 0666, NULL);
 
-  vterm_input_write(vt, test, strlen(test));
-
-  printf("vterm_fb: static content rendered -- window stays open, "
-         "run `kill <pid>` from another terminal to stop (confirmed:\n"
-         "Ctrl+C/SIGINT does not stop native_sim, SIGTERM does)\n");
-
-  /* Deliberately not closing g_st.fd or returning here. fb_close()
-   * (drivers/video/fb.c) calls the video vtable's close callback when
-   * the last open reference goes away, and on this sim target that's
-   * sim_closewindow() -> sim_x11closewindow() -- it tears the X11
-   * window down. A display surface is meant to stay up for the whole
-   * session, the same way any real terminal application holds its
-   * display open for as long as it's running, so we hold the fd open
-   * and just idle here instead of returning.
-   */
-
-  for (; ; )
+  if (ret < 0)
     {
-      sleep(3600);
+      fprintf(stderr, "vterm_fb: register_driver failed: %d\n", ret);
+      vterm_free(g_st.vt);
+      munmap(g_st.fbmem, g_st.pinfo.fblen);
+      close(g_st.fd);
+      return 1;
     }
+
+  fd = open(VAPORTERM_DEVPATH, O_WRONLY);
+
+  if (fd < 0)
+    {
+      fprintf(stderr, "vterm_fb: open %s failed: %d\n",
+              VAPORTERM_DEVPATH, errno);
+      vterm_free(g_st.vt);
+      munmap(g_st.fbmem, g_st.pinfo.fblen);
+      close(g_st.fd);
+      return 1;
+    }
+
+  /* stdin is deliberately untouched -- NSH keeps reading from wherever
+   * this process's own stdin already is. Only stdout/stderr move. */
+
+  fflush(stdout);
+  fflush(stderr);
+
+  dup2(fd, 1);
+  dup2(fd, 2);
+
+  close(fd);
+
+  /* Blocks here for the whole NSH session -- same as any other NSH
+   * entrypoint. Returns when the user exits/powers off. */
+
+  nsh_consolemain(argc, argv);
+
+  vterm_free(g_st.vt);
+  munmap(g_st.fbmem, g_st.pinfo.fblen);
+  close(g_st.fd);
 
   return 0;
 }

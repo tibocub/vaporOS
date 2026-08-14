@@ -1,14 +1,20 @@
 config VAPOROS_VTERM_FB
-	tristate "vterm_fb -- Milestone 2: libvterm rendering to /dev/fb0"
+	tristate "vterm_fb -- Milestone 3: real NSH rendered via libvterm"
 	depends on NXFONTS
+	depends on NSH_LIBRARY
 	default n
 	---help---
-		Static-content proof that libvterm's damage callback can drive
-		real glyph rendering onto a raw framebuffer -- no NX window or
+		A real NSH session (nsh_consolemain) with its stdout/stderr
+		redirected to our own /dev/vaporterm0 character device, whose
+		write callback feeds libvterm and drives the same nxfonts
+		glyph rendering Milestone 2 proved works -- no NX window or
 		compositor involved, following apps/examples/fbcon's proven
-		mechanics for talking to /dev/fb0 directly. Milestone 2 of
-		docs/vaporterm.md. Needs a framebuffer device (CONFIG_SIM_X11FB
-		on sim) and an enabled NX font (e.g. CONFIG_NXFONT_SANS23X27).
+		mechanics for talking to /dev/fb0 directly. Milestone 3 of
+		docs/vaporterm.md. Keyboard input still comes from this
+		process's own stdin (the host terminal on sim), not from
+		clicking into the window -- that's later work. Needs a
+		framebuffer device (CONFIG_SIM_X11FB on sim), an enabled NX
+		font (CONFIG_NXFONT_X11_MISC_FIXED_10X20), and NSH_LIBRARY.
 
 if VAPOROS_VTERM_FB
 
