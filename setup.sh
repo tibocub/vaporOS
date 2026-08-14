@@ -24,6 +24,15 @@
 #                        #              see the note on keyboard input
 #                        #              below before expecting this to
 #                        #              feel like a normal terminal
+#   ./setup.sh vterm_fb -- sim:nx11 base again, but vterm_fb itself is
+#                        #              the boot entrypoint (like
+#                        #              nxterm_main is for nxterm) --
+#                        #              not an NSH command. Runs
+#                        #              immediately at boot, no shell
+#                        #              involved. Milestone 2 of
+#                        #              vaporterm.md: static content
+#                        #              rendered straight to /dev/fb0,
+#                        #              no NX window involved
 #
 # nxterm isn't an upstream NuttX board config (no sim:nxterm exists) --
 # it's assembled here from sim:nx11's base (X11 framebuffer, NX) with
@@ -92,7 +101,7 @@ if command -v apt-get >/dev/null 2>&1; then
   # X11 dev headers, only needed for graphical (nx11-style) targets --
   # confirmed required (Xlib.h, link libs) when actually building one.
   case "$BOARD_CONFIG" in
-    nx11|nxterm|lvgl_fb)
+    nx11|nxterm|vterm_fb|lvgl_fb)
       dpkg -s libx11-dev >/dev/null 2>&1 || MISSING="$MISSING libx11-dev"
       ;;
   esac
@@ -142,6 +151,21 @@ if [ "$BOARD_CONFIG" = "nxterm" ]; then
   # right choice for a limited-VT100 terminal. This is a choice
   # option, so enabling it deselects CLE automatically.
   kconfig-tweak --enable CONFIG_NSH_READLINE
+elif [ "$BOARD_CONFIG" = "vterm_fb" ]; then
+  ./tools/configure.sh sim:nx11
+  # vterm_fb runs directly as the boot entrypoint -- same pattern as
+  # nxterm_main above, not an NSH command. This is deliberate, not
+  # just simpler: making it an NSH command (nsh_main as entrypoint,
+  # vterm_fb registered as a builtin to run by hand) hit a real,
+  # reproducible NuttX build-system bug where the app would compile
+  # and link cleanly but never actually get registered -- confirmed
+  # across multiple genuinely fresh clones, confirmed to affect other
+  # apps too under the same nsh_main/SYSTEM_NSH combination, and never
+  # fully root-caused despite real effort. Using vterm_fb itself as
+  # INIT_ENTRYPOINT sidesteps that registration mechanism entirely and
+  # has been reliable every time it's been tried.
+  kconfig-tweak --disable CONFIG_EXAMPLES_NX
+  kconfig-tweak --set-str CONFIG_INIT_ENTRYPOINT vterm_fb_main
 else
   ./tools/configure.sh sim:$BOARD_CONFIG
 fi
@@ -189,6 +213,20 @@ kconfig-tweak --enable CONFIG_SYSTEM_VI
 # but it needs to build so `vtermtest` stays available without a manual
 # kconfig-tweak every time this script runs.
 kconfig-tweak --enable CONFIG_VAPOROS_VTERMTEST
+if [ "$BOARD_CONFIG" = "vterm_fb" ]; then
+  kconfig-tweak --enable CONFIG_DRIVERS_VIDEO
+  kconfig-tweak --enable CONFIG_VIDEO_FB
+  # SIM_FRAMEBUFFER is a choice option (vs. SIM_LCDDRIVER) nested
+  # inside SIM_X11FB -- it's what actually pulls in sim_framebuffer.c,
+  # the file with the sim_x11loop() symbol nx11/nxterm never needed
+  # but a raw /dev/fb0 consumer does. Missing this produces a real
+  # link-time "undefined reference to sim_x11loop", not a config
+  # warning -- confirmed by hitting it directly before adding this.
+  kconfig-tweak --enable CONFIG_SIM_FRAMEBUFFER
+  kconfig-tweak --enable CONFIG_NXFONTS
+  kconfig-tweak --enable CONFIG_NXFONT_SANS23X27
+  kconfig-tweak --enable CONFIG_VAPOROS_VTERM_FB
+fi
 make olddefconfig
 
 make -j"$(nproc)"

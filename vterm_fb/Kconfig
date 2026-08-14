@@ -1,0 +1,27 @@
+config VAPOROS_VTERM_FB
+	tristate "vterm_fb -- Milestone 2: libvterm rendering to /dev/fb0"
+	depends on NXFONTS
+	default n
+	---help---
+		Static-content proof that libvterm's damage callback can drive
+		real glyph rendering onto a raw framebuffer -- no NX window or
+		compositor involved, following apps/examples/fbcon's proven
+		mechanics for talking to /dev/fb0 directly. Milestone 2 of
+		docs/vaporterm.md. Needs a framebuffer device (CONFIG_SIM_X11FB
+		on sim) and an enabled NX font (e.g. CONFIG_NXFONT_SANS23X27).
+
+if VAPOROS_VTERM_FB
+
+config VAPOROS_VTERM_FB_PROGNAME
+	string "Program name"
+	default "vterm_fb"
+
+config VAPOROS_VTERM_FB_PRIORITY
+	int "priority"
+	default 100
+
+config VAPOROS_VTERM_FB_STACKSIZE
+	int "stack size"
+	default DEFAULT_TASK_STACKSIZE
+
+endif
