@@ -5,10 +5,17 @@
 Same split as `vapor-api.md`: leverage what's already solved, build only
 what's genuinely missing. `libvterm` solves VT100/xterm escape-sequence
 parsing and screen-state tracking -- correctness-sensitive work with
-no reason to redo it. NX solves windowing, drawing primitives, and
-font rendering. What's actually ours to build is the glue between
-them, plus keyboard input -- the two things neither library can do for
-us, because both are specific to how *we* want this to work.
+no reason to redo it. NX's font-rendering utilities (`nxfonts`) solve
+glyph rasterization -- also not worth redoing. What's actually ours to
+build is the glue between `libvterm` and the raw framebuffer, plus
+keyboard input.
+
+**Revision, after further thought:** NX is really two separable
+things -- a windowing/compositing layer (multiple movable, resizable,
+z-ordered windows) and a font/drawing-primitives library sitting
+underneath it. We only want the second. See "Rendering target" below
+for why, and for the precedent (`apps/examples/fbcon`) that confirms
+this split is real and already used elsewhere in NuttX.
 
 ## Why not NxTerm
 
@@ -30,12 +37,17 @@ our custom stream/device  ---->  libvterm (parser + screen state)
   ^                                   |
   |                                   | VTermScreenCallbacks
   | stdin                             v
-  |                              our NX render callbacks
-keyboard input reader  <---         (damage -> redraw dirty cells)
+  |                              our render callbacks
+keyboard input reader  <---         (damage -> redraw dirty cells,
+                                      using nxfonts for glyphs)
                                      |
                                      v
-                                  NX window (on sim: X11; on real
-                                  hardware: the actual display)
+                                  /dev/fb0, direct -- no NX window
+                                  server, no compositor (on sim: the
+                                  same X11-backed framebuffer device
+                                  nx11 already uses; on real hardware:
+                                  whatever the board's display driver
+                                  exposes as a framebuffer)
 ```
 
 Same shape `apps/examples/nxterm` already uses for wiring NSH's
@@ -66,18 +78,42 @@ same as `nxterm_main.c` does today.
   -- one less thing that can fail on a flaky network mid-build, and
   we've already hit that exact failure mode with Lua's own fetch step.
 
-## NX rendering
+## Rendering target: direct framebuffer, not an NX window
+
+Decided against NX's windowing layer for v1. vaporOS's own preference
+is terminal-first -- a single full-screen surface, TUIs running inside
+it exactly like `vim`/`htop` do in any real terminal, with actual
+multi-window GUI treated as optional future work rather than a
+foundation everything else depends on. NX's windowing/compositing
+machinery (multiple movable, resizable, z-ordered windows, cross-window
+event routing) exists to solve a problem we don't have in v1.
+
+This split is real, not a workaround -- confirmed via
+`apps/examples/fbcon`, which already does close to exactly this:
+redirects NSH's stdout to `/dev/fb0` directly (`open()` +
+`ioctl(FBIOGET_VIDEOINFO)` + `mmap()`), uses NX's `nxf_getbitmap`/
+`nxf_getfonthandle` purely for glyph rendering, and never calls
+`nx_openwindow` at all. No compositor, one surface, the whole screen.
+
+What we're taking from `fbcon`: the proven mechanics for talking to
+the raw framebuffer and blitting glyphs via `nxfonts`. What we're
+**not** taking: its own hand-rolled VT100 parser -- its escape table
+includes the exact sequences that broke NxTerm (`\e[2K`, `\e[?25l`,
+`\e[?25h`), and its completeness is unaudited. No reason to trust an
+unverified parser when `libvterm` is already proven correct (Milestone
+1). So: `fbcon`'s framebuffer/glyph mechanics + `libvterm`'s
+interpretation, not `fbcon` wholesale.
 
 - Reuse `CONFIG_NXFONT_SANS23X27` (already enabled, already proven
-  working in the `nx11`/`nxterm` builds) rather than building font
-  rendering ourselves.
+  working) via `nxfonts`, rather than building font rendering
+  ourselves.
 - Redraw only what `libvterm`'s `damage` callback marks dirty, not the
   whole screen on every change -- matters even at sim scale, matters a
   lot more on real hardware.
-- Single fullscreen NX window. No window manager (`NxWM`) for v1 --
-  that's a real, heavier thing (C++, its own widget library) worth
-  its own evaluation later, not a dependency for a first working
-  terminal.
+- NX windowing (`NxWM`, multi-window GUI) stays available as a
+  genuinely separate, addable layer later, on top of the same
+  framebuffer -- this decision doesn't foreclose it, just doesn't make
+  it a dependency of the first working terminal.
 
 ## Keyboard input -- staged deliberately, not bundled into v1
 
@@ -87,14 +123,15 @@ that's already well-understood:
 
 - **v1 (sim)**: same limitation NxTerm has today -- keyboard input
   comes from the host terminal's stdin, not from clicking into the
-  window. Gets us a working, correctly-rendering terminal without
-  betting the whole plan on the uncertain part.
-- **v2 (sim)**: real X11 key-event forwarding into the window, so
-  typing happens in the window itself. Genuinely uncertain -- this is
-  the area a recent NuttX GitHub issue (#16802) flagged as having
-  rough edges on a different graphics stack using the same underlying
-  X11-sim input layer. Worth attempting once v1 proves the rendering
-  side works, not before.
+  X11 window backing `/dev/fb0` on sim. Gets us a working,
+  correctly-rendering terminal without betting the whole plan on the
+  uncertain part.
+- **v2 (sim)**: real X11 key-event forwarding into that backing
+  window, so typing happens there directly. Genuinely uncertain --
+  this is the area a recent NuttX GitHub issue (#16802) flagged as
+  having rough edges on a different graphics stack using the same
+  underlying X11-sim input layer. Worth attempting once v1 proves the
+  rendering side works, not before.
 - **v3 (real hardware)**: an actual keyboard driver (USB HID, matrix,
   whatever the board has) as NSH's real console input. No X11
   involved at all -- this is arguably the *simpler* case once we're
@@ -123,9 +160,11 @@ that's already well-understood:
    (NxTerm leaking unrecognized escapes as literal text) does not
    recur here.
 
-2. Minimal NX window + `damage`/`movecursor` callbacks rendering
-   static test content (not real NSH output yet) -- proves the
-   render pipeline independent of NSH wiring.
+2. Minimal direct-framebuffer setup (`open`/`ioctl(FBIOGET_VIDEOINFO)`/
+   `mmap` on `/dev/fb0`, following `fbcon`'s proven mechanics) +
+   `damage`/`movecursor` callbacks rendering static test content via
+   `nxfonts` glyph blitting -- not real NSH output yet, no NX window
+   involved -- proves the render pipeline independent of NSH wiring.
 3. Wire NSH's stdout through our stream into `libvterm`, keyboard
    still via host stdin (the v1 input stage above) -- first genuinely
    usable terminal, input limitation and all.
