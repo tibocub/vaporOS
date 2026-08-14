@@ -23,6 +23,7 @@
 #include <errno.h>
 #include <sys/ioctl.h>
 #include <sys/mman.h>
+#include <sys/boardctl.h>
 
 #include <nuttx/fs/fs.h>
 #include <nuttx/video/fb.h>
@@ -110,6 +111,66 @@ static void draw_cell(int row, int col, uint32_t ch)
     }
 }
 
+/* Same as draw_cell, but background/foreground swapped -- a simple
+ * block cursor. Fetches the actual character so the cursor shows what
+ * it's sitting on (inverted), not just a blank block. */
+
+static void draw_cell_inverted(int row, int col)
+{
+  VTermPos pos;
+  VTermScreenCell cell;
+  FAR const struct nx_fontbitmap_s *fbm;
+  uint32_t glyph[64 * 64];
+  uint16_t stride;
+  int gy;
+  int gx;
+  FAR uint32_t *dest;
+  FAR uint32_t *src;
+  uint32_t ch;
+
+  pos.row = row;
+  pos.col = col;
+  vterm_screen_get_cell(g_st.screen, pos, &cell);
+  ch = cell.chars[0];
+
+  if (ch == 0)
+    {
+      ch = ' ';
+    }
+
+  fbm = nxf_getbitmap(g_st.font, ch);
+  stride = g_cellw * sizeof(uint32_t);
+
+  for (gy = 0; gy < g_cellh; gy++)
+    {
+      for (gx = 0; gx < g_cellw; gx++)
+        {
+          glyph[gy * g_cellw + gx] = 0x00ffffff;  /* inverted: white bg */
+        }
+    }
+
+  if (fbm != NULL)
+    {
+      nxf_convert_32bpp(glyph, g_cellh, g_cellw, stride, fbm, 0x00000000);
+    }
+
+  for (gy = 0; gy < g_cellh; gy++)
+    {
+      int fby = row * g_cellh + gy;
+
+      if (fby >= g_st.vinfo.yres)
+        {
+          break;
+        }
+
+      dest = (FAR uint32_t *)(g_st.fbmem + fby * g_st.pinfo.stride +
+                               col * g_cellw * sizeof(uint32_t));
+      src  = &glyph[gy * g_cellw];
+
+      memcpy(dest, src, g_cellw * sizeof(uint32_t));
+    }
+}
+
 static int on_damage(VTermRect rect, void *user)
 {
   int row;
@@ -131,9 +192,32 @@ static int on_damage(VTermRect rect, void *user)
   return 1;
 }
 
+/* Redraws the cell the cursor just left (so it doesn't stay lit up
+ * forever) and the cell it's moving to, inverted, as a simple block
+ * cursor. Minimal -- no blink, no shape options -- but a real visible
+ * position indicator, which draw_cell()/on_damage() alone never gave
+ * us (they only ever draw actual character cells). */
+
+static int on_movecursor(VTermPos pos, VTermPos oldpos, int visible,
+                          void *user)
+{
+  VTermScreenCell cell;
+
+  vterm_screen_get_cell(g_st.screen, oldpos, &cell);
+  draw_cell(oldpos.row, oldpos.col, cell.chars[0]);
+
+  if (visible)
+    {
+      draw_cell_inverted(pos.row, pos.col);
+    }
+
+  return 1;
+}
+
 static VTermScreenCallbacks g_callbacks =
 {
-  .damage = on_damage
+  .damage     = on_damage,
+  .movecursor = on_movecursor
 };
 
 /****************************************************************************
@@ -148,7 +232,31 @@ static VTermScreenCallbacks g_callbacks =
 static ssize_t vaporterm_write(FAR struct file *filep,
                                 FAR const char *buffer, size_t buflen)
 {
-  vterm_input_write(g_st.vt, buffer, buflen);
+  /* A real TTY's line discipline translates outgoing \n to \r\n
+   * (ONLCR) before a terminal ever sees it. /dev/vaporterm0 is a raw
+   * character device with no such translation, so NSH's bare \n
+   * reaches libvterm unchanged -- which, correctly per strict VT100
+   * behaviour, moves the cursor down without returning to column 0.
+   * Confirmed directly: this produces the exact "staircase" pattern
+   * where each new line starts one column further right than the
+   * last. Translating here is the fix, not a workaround -- this is
+   * exactly the job a TTY driver would otherwise be doing for us.
+   * Extra \r before an already-present \r\n is harmless (idempotent),
+   * so no need to check first.
+   */
+
+  size_t i;
+
+  for (i = 0; i < buflen; i++)
+    {
+      if (buffer[i] == '\n')
+        {
+          vterm_input_write(g_st.vt, "\r", 1);
+        }
+
+      vterm_input_write(g_st.vt, &buffer[i], 1);
+    }
+
   return buflen;
 }
 
@@ -277,13 +385,27 @@ int main(int argc, FAR char *argv[])
   close(fd);
 
   /* Blocks here for the whole NSH session -- same as any other NSH
-   * entrypoint. Returns when the user exits/powers off. */
+   * entrypoint. Returns when the user types "exit" (or "poweroff",
+   * which never reaches here since it terminates the process
+   * directly). */
 
   nsh_consolemain(argc, argv);
 
   vterm_free(g_st.vt);
   munmap(g_st.fbmem, g_st.pinfo.fblen);
   close(g_st.fd);
+
+  /* Confirmed directly (piped "poweroff" through plain sim:nsh, exit
+   * code showed the whole process actually terminated, not just this
+   * task returning): native_sim keeps running as a simulated OS after
+   * its boot task exits -- same idle-forever behaviour Milestone 2's
+   * SIGTERM finding already established. Without this, "exit" would
+   * only end the NSH session while the underlying process kept
+   * running, same complaint as needing `kill` to stop it. poweroff
+   * the board explicitly so "exit" gives a real, complete shutdown.
+   */
+
+  boardctl(BOARDIOC_POWEROFF, 0);
 
   return 0;
 }

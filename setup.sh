@@ -236,6 +236,11 @@ if [ "$BOARD_CONFIG" = "vterm_fb" ]; then
   # size -- not a coincidence, chosen because it lines up exactly.
   kconfig-tweak --set-val CONFIG_SIM_FBWIDTH 800
   kconfig-tweak --set-val CONFIG_SIM_FBHEIGHT 600
+  # nx11's own defconfig doesn't enable this (a graphics demo has no
+  # reason to shut the board down) -- needed both for "poweroff" to
+  # exist as an NSH command at all, and for our own boardctl() call
+  # after nsh_consolemain() returns to do anything.
+  kconfig-tweak --enable CONFIG_BOARDCTL_POWEROFF
   kconfig-tweak --enable CONFIG_VAPOROS_VTERM_FB
 fi
 make olddefconfig
