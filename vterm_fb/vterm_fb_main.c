@@ -25,7 +25,10 @@
 
 #include "vterm.h"
 
-#define VTERM_ROWS   24
+/* Matches the 800x600 display at 10x20 cells (X11_MISC_FIXED_10X20) --
+ * 80x30 is also the classic standard terminal size, not a coincidence
+ * worth losing: chosen because it lines up exactly, not picked first. */
+#define VTERM_ROWS   30
 #define VTERM_COLS   80
 
 struct vterm_fb_state
@@ -180,7 +183,7 @@ int main(int argc, FAR char *argv[])
       return 1;
     }
 
-  g_st.font = nxf_getfonthandle(FONTID_SANS23X27);
+  g_st.font = nxf_getfonthandle(FONTID_X11_MISC_FIXED_10X20);
 
   if (g_st.font == NULL)
     {
@@ -218,7 +221,8 @@ int main(int argc, FAR char *argv[])
   vterm_input_write(vt, test, strlen(test));
 
   printf("vterm_fb: static content rendered -- window stays open, "
-         "Ctrl+C to stop\n");
+         "run `kill <pid>` from another terminal to stop (confirmed:\n"
+         "Ctrl+C/SIGINT does not stop native_sim, SIGTERM does)\n");
 
   /* Deliberately not closing g_st.fd or returning here. fb_close()
    * (drivers/video/fb.c) calls the video vtable's close callback when

@@ -224,7 +224,18 @@ if [ "$BOARD_CONFIG" = "vterm_fb" ]; then
   # warning -- confirmed by hitting it directly before adding this.
   kconfig-tweak --enable CONFIG_SIM_FRAMEBUFFER
   kconfig-tweak --enable CONFIG_NXFONTS
-  kconfig-tweak --enable CONFIG_NXFONT_SANS23X27
+  # NXFONT_SANS23X27 is a proportional font -- forcing it into a fixed
+  # per-cell grid (every cell sized for the font's *widest* glyph)
+  # left narrow characters looking like they had gaps around them.
+  # X11_MISC_FIXED_10X20 is a genuine monospace font (the classic X11
+  # "fixed" family), so every glyph actually fills its cell -- no
+  # forcing needed. Also just plain bigger and more legible.
+  kconfig-tweak --enable CONFIG_NXFONT_X11_MISC_FIXED_10X20
+  # Default sim display is 320x240 -- tiny on a real desktop. 800x600
+  # at 10x20 cells works out to exactly 80x30, the classic terminal
+  # size -- not a coincidence, chosen because it lines up exactly.
+  kconfig-tweak --set-val CONFIG_SIM_FBWIDTH 800
+  kconfig-tweak --set-val CONFIG_SIM_FBHEIGHT 600
   kconfig-tweak --enable CONFIG_VAPOROS_VTERM_FB
 fi
 make olddefconfig
