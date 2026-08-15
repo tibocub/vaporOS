@@ -85,6 +85,39 @@ if [ ! -d apps ]; then
   git -C apps checkout "${APPS_COMMIT}"
 fi
 
+# NuttX's own readline (at least on the releases/13.0-style codebase --
+# confirmed by reading it directly) never echoes plain typed characters
+# or the Enter keystroke's own newline in its shared core logic. It's
+# built assuming the terminal's own kernel-level local echo handles
+# this, which only works when stdin and stdout are the same real
+# device -- ours aren't (stdin stays on the host terminal, stdout goes
+# to our own /dev/vaporterm0). Confirmed directly: replayed the exact
+# byte sequence a real debug log captured through libvterm in
+# isolation and it correctly reproduced "no visible typing" / "first
+# output line lands on the prompt row". The fix is two missing echo
+# calls, applied here since it's NuttX's own source, not ours.
+# Idempotent (checks before patching) and non-fatal if the target
+# lines aren't found (e.g. a different apps branch/structure) --
+# prints a warning and continues rather than breaking the build.
+READLINE_SRC="apps/system/readline/readline_common.c"
+
+if [ -f "$READLINE_SRC" ] && ! grep -q "RL_PUTC(vtbl, ch);" "$READLINE_SRC"; then
+  if grep -q "buf\[nch++\] = ch;" "$READLINE_SRC"; then
+    sed -i "/buf\[nch++\] = ch;/a\\          RL_PUTC(vtbl, ch);" "$READLINE_SRC"
+    # submit_line(buf, nch) doesn't take vtbl as a parameter, so the
+    # echo has to go at its call sites (both are inside "if (ch ==
+    # '\\n')" blocks that do have vtbl in scope), not inside its body.
+    # Caught this via a real compile error ("vtbl undeclared") on the
+    # first version of this patch, not assumed.
+    sed -i "s/return submit_line(buf, nch);/RL_PUTC(vtbl, '\\\\n'); return submit_line(buf, nch);/" "$READLINE_SRC"
+    echo "Patched apps/system/readline/readline_common.c: added missing character/newline echo"
+  else
+    echo "WARNING: readline_common.c doesn't match the expected pattern for the" >&2
+    echo "echo patch (different apps branch?) -- skipping, typing may not be" >&2
+    echo "visible in vterm_fb/nxterm. See setup.sh for details." >&2
+  fi
+fi
+
 if [ ! -e apps/external ]; then
   echo "Linking apps/external -> vaporOS-nuttx"
   ln -s "${SCRIPT_DIR}" apps/external
@@ -166,6 +199,17 @@ elif [ "$BOARD_CONFIG" = "vterm_fb" ]; then
   # has been reliable every time it's been tried.
   kconfig-tweak --disable CONFIG_EXAMPLES_NX
   kconfig-tweak --set-str CONFIG_INIT_ENTRYPOINT vterm_fb_main
+  # Same fix nxterm already got, mechanically missing here until now:
+  # CLE (NSH's default line editor on a non-DEFAULT_SMALL config, which
+  # this is) sends a "hide cursor, move left N, erase to EOL, reprint
+  # whole buffer, show cursor" sequence on every keystroke. Confirmed
+  # directly -- replayed the exact byte sequence from a real debug log
+  # through libvterm in isolation and it reproduced the reported bug
+  # exactly (typed text overwriting the prompt from the right, one
+  # column further each keystroke). NSH_READLINE avoids this whole
+  # class of cursor-position redraw entirely -- backspace-only editing,
+  # nothing to get subtly out of sync with our own cursor tracking.
+  kconfig-tweak --enable CONFIG_NSH_READLINE
 else
   ./tools/configure.sh sim:$BOARD_CONFIG
 fi
