@@ -241,6 +241,19 @@ if [ "$BOARD_CONFIG" = "vterm_fb" ]; then
   # exist as an NSH command at all, and for our own boardctl() call
   # after nsh_consolemain() returns to do anything.
   kconfig-tweak --enable CONFIG_BOARDCTL_POWEROFF
+  # sim:nx11's defconfig sets CONFIG_DISABLE_MOUNTPOINT=y globally
+  # (reasonable for a plain graphics demo that never mounts anything)
+  # -- but FS_HOSTFS itself depends on !DISABLE_MOUNTPOINT, so it
+  # silently couldn't be enabled at all until this is turned off
+  # first. Confirmed directly: grepping .config for FS_HOSTFS/
+  # SIM_HOSTFS came back completely empty even after enabling them,
+  # and mount() failed with ret=-1 as a result.
+  kconfig-tweak --disable CONFIG_DISABLE_MOUNTPOINT
+  # sim:nx11's defconfig never enables these (only sim:nsh's does, via
+  # its own rcS init script) -- needed for our own mount() call in
+  # vterm_fb_main.c to have an actual filesystem driver to mount.
+  kconfig-tweak --enable CONFIG_FS_HOSTFS
+  kconfig-tweak --enable CONFIG_SIM_HOSTFS
   kconfig-tweak --enable CONFIG_VAPOROS_VTERM_FB
 fi
 make olddefconfig

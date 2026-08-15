@@ -24,6 +24,7 @@
 #include <sys/ioctl.h>
 #include <sys/mman.h>
 #include <sys/boardctl.h>
+#include <sys/mount.h>
 
 #include <nuttx/fs/fs.h>
 #include <nuttx/video/fb.h>
@@ -327,6 +328,26 @@ int main(int argc, FAR char *argv[])
 {
   int ret;
   int fd;
+
+  /* A standard sim:nsh boot mounts hostfs at /data via its rcS init
+   * script (etc/init.d/rcS: "mount -t hostfs -o fs=. /data") before
+   * ever reaching a shell. Our own entrypoint skips that script
+   * entirely -- nsh_consolemain() is called directly below, not
+   * through the normal boot sequence -- so /data never existed in
+   * this build at all. Confirmed directly: CONFIG_FS_HOSTFS wasn't
+   * even in .config, and the debug log's fopen() was failing
+   * silently every time as a result. Doing the same mount() call
+   * ourselves fixes that, and also makes /data genuinely usable from
+   * inside a vaporterm NSH session generally, not just for the log.
+   */
+
+  ret = mount(NULL, "/data", "hostfs", 0, "fs=.");
+
+  if (ret < 0)
+    {
+      fprintf(stderr, "vterm_fb: mount /data failed: ret=%d errno=%d "
+              "(continuing without it)\n", ret, errno);
+    }
 
   g_st.fd = open("/dev/fb0", O_RDWR);
 
