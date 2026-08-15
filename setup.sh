@@ -105,6 +105,20 @@ fi
 # isolation before writing this fix, not assumed.
 READLINE_SRC="apps/system/readline/readline_common.c"
 
+# Reset to pristine before patching, every run, rather than layering
+# idempotent guards on top of whatever a previous run left behind.
+# That approach broke down concretely: a diagnostic patch applied in
+# an earlier debugging session stayed in this file indefinitely (only
+# a manual `git checkout` would remove it), and once READLINE_EDIT
+# got disabled it started firing *alongside* the real echo patch --
+# both wrapping and un-wrapping the same character, visible as
+# doubled output ("<l>l" instead of "l"). A stateless reset removes
+# this entire failure class rather than requiring anyone to remember
+# a manual revert step. Best-effort (`|| true`): apps/ might not be a
+# git checkout in every environment, and that's not fatal -- the
+# patches below still have their own guards for that case.
+git -C apps checkout -- system/readline/readline_common.c 2>/dev/null || true
+
 if [ -f "$READLINE_SRC" ] && ! grep -q "buf\[nch++\] = ch;" "$READLINE_SRC" && ! grep -q "RL_PUTC(vtbl, ch);" "$READLINE_SRC"; then
   echo "WARNING: readline_common.c doesn't match the expected pattern for the" >&2
   echo "echo patch (different apps branch?) -- skipping, typing may not be" >&2
@@ -126,20 +140,34 @@ if [ -f "$READLINE_SRC" ] && grep -q "return submit_line(buf, nch);" "$READLINE_
   echo "Patched readline_common.c: added missing newline echo"
 fi
 
-# TEMPORARY diagnostic: mark every character the instant it's read,
-# before any dispatch logic decides what to do with it.
-if [ -f "$READLINE_SRC" ] && grep -q "int ch = RL_GETC(vtbl);" "$READLINE_SRC" && ! grep -q "RL_PUTC(vtbl, '<')" "$READLINE_SRC"; then
-  sed -i "s/int ch = RL_GETC(vtbl);/int ch = RL_GETC(vtbl); RL_PUTC(vtbl, '<'); RL_PUTC(vtbl, (ch >= 32 \&\& ch < 127) ? ch : '?'); RL_PUTC(vtbl, '>');/" "$READLINE_SRC"
-  echo "Patched readline_common.c: added diagnostic character marker"
-fi
-
+# The diagnostic character marker that used to be patched in here
+# (wrapping every read character in <...>) has served its purpose --
+# it's what confirmed characters were reaching RL_GETC correctly even
+# though nothing was drawn to screen, which pointed at the echo/redraw
+# side rather than input. Removed now that the real cause (readline()'s
+# own CONFIG_READLINE_EDIT cursor-editing mode being left on -- see
+# above) is identified, rather than something in this codepath.
+# If readline_common.c in your apps/ checkout still has the marker
+# from a previous run of this script, it'll stay there -- this only
+# stops re-applying it, it doesn't undo an existing apply. Revert with:
+#   git -C apps checkout -- system/readline/readline_common.c
+# then re-run this script to get a clean re-patch.
 # These patches modify readline_common.c outside of make's own
 # dependency tracking. NuttX's build has repeatedly not detected
 # source changes made this way (hit this exact class of stale-binary
 # issue multiple times already in this project) -- force removal of
 # any already-compiled object for this file so a real rebuild is
 # guaranteed, rather than trusting make to notice on its own.
-find . -name "readline_common.c.*.o" -delete 2>/dev/null
+# Scoped to apps/ (the only place this .o can exist) rather than the
+# whole workspace: searching from "." here means WORKSPACE, which
+# also contains the full nuttx/ checkout and apps/external's own
+# self-symlink back to this repo -- a huge, irrelevant tree to walk
+# for a single known filename, and under `set -e` any traversal error
+# anywhere in it (a permission-denied subdirectory, a dangling
+# symlink, anything find can't stat) kills the whole build right here
+# with zero output, since stderr was being thrown away. `|| true`
+# keeps that failure mode from being fatal even if it recurs.
+find apps -name "readline_common.c.*.o" -delete 2>/dev/null || true
 
 
 if [ ! -e apps/external ]; then
@@ -208,6 +236,23 @@ if [ "$BOARD_CONFIG" = "nxterm" ]; then
   # right choice for a limited-VT100 terminal. This is a choice
   # option, so enabling it deselects CLE automatically.
   kconfig-tweak --enable CONFIG_NSH_READLINE
+  # NSH_READLINE only picks readline() over CLE -- it does NOT turn
+  # off readline()'s OWN separate cursor-editing mode. READLINE_EDIT
+  # is a sibling Kconfig option (default y whenever !DEFAULT_SMALL,
+  # which a desktop sim build always is) that switches readline_common.c
+  # to an entirely different code path: characters are spliced into
+  # the buffer and redraw_tail() is called only if cursor < nch, i.e.
+  # only when editing mid-line. A plain character typed at the end of
+  # the line increments cursor and nch together, so that condition is
+  # never true and the character is never echoed at all -- confirmed
+  # directly by reading both branches side by side. That's the actual
+  # readline() design: on a real serial console, local echo already
+  # happens at the terminal/driver level, so this path doesn't
+  # duplicate it. Our device has no such local echo, so we need the
+  # OTHER branch (READLINE_EDIT off), which does an unconditional
+  # RL_PUTC(vtbl, ch) right after appending -- confirmed present in
+  # readline_common.c's #else branch.
+  kconfig-tweak --disable CONFIG_READLINE_EDIT
 elif [ "$BOARD_CONFIG" = "vterm_fb" ]; then
   ./tools/configure.sh sim:nx11
   # vterm_fb runs directly as the boot entrypoint -- same pattern as
@@ -234,6 +279,15 @@ elif [ "$BOARD_CONFIG" = "vterm_fb" ]; then
   # class of cursor-position redraw entirely -- backspace-only editing,
   # nothing to get subtly out of sync with our own cursor tracking.
   kconfig-tweak --enable CONFIG_NSH_READLINE
+  # See the matching comment in the nxterm branch above: NSH_READLINE
+  # alone doesn't disable readline()'s own cursor-editing mode, and
+  # that mode only echoes a typed character when redrawing mid-line
+  # (cursor < nch) -- never for a plain append at the end of the line,
+  # which is the normal case. This is the actual, previously-missing
+  # fix for "typed characters invisible" -- not something wrong with
+  # our own echo patches below, which target the correct branch but
+  # were dead code as long as READLINE_EDIT stayed on.
+  kconfig-tweak --disable CONFIG_READLINE_EDIT
 else
   ./tools/configure.sh sim:$BOARD_CONFIG
 fi
@@ -282,6 +336,12 @@ kconfig-tweak --enable CONFIG_SYSTEM_VI
 # kconfig-tweak every time this script runs.
 kconfig-tweak --enable CONFIG_VAPOROS_VTERMTEST
 if [ "$BOARD_CONFIG" = "vterm_fb" ]; then
+  # vterm_fb_main.c now runs NSH on a real pty (openpty()) instead of
+  # its own bespoke character device -- see the comment block at the
+  # top of vterm_fb_main.c for why. PSEUDOTERM also pulls in PIPES and
+  # ARCH_HAVE_SERIAL_TERMIOS itself (it selects both), so nothing else
+  # needs enabling separately for this.
+  kconfig-tweak --enable CONFIG_PSEUDOTERM
   kconfig-tweak --enable CONFIG_DRIVERS_VIDEO
   kconfig-tweak --enable CONFIG_VIDEO_FB
   # SIM_FRAMEBUFFER is a choice option (vs. SIM_LCDDRIVER) nested

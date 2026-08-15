@@ -16,13 +16,10 @@ MODULE    = $(CONFIG_VAPOROS_VTERM_FB)
 ifeq ($(CONFIG_VAPOROS_VTERM_FB),y)
 CFLAGS += ${INCDIR_PREFIX}$(APPDIR)/external/vterm/libvterm/include
 CFLAGS += ${INCDIR_PREFIX}$(APPDIR)/external/vterm/libvterm/src
-# Diagnostic logging (dumps every byte NSH writes to
-# /data/vaporterm_debug.log) -- re-enabled to investigate why plain
-# character echo still isn't visible despite the readline patch
-# (confirmed correctly placed via direct source inspection, confirmed
-# OUTFD(pstate) is the right fd via source too -- something is still
-# wrong and needs real data, not another guess, same as last time this
-# tool actually resolved something).
+# Diagnostic logging (dumps every byte read from the pty master to
+# /data/vaporterm_debug.log). Left on since it's cheap and has
+# earned its keep more than once already -- turn off if the sim's
+# hostfs mount ever becomes a bottleneck, not before.
 CFLAGS += -DVAPORTERM_DEBUG_LOG
 
 CSRCS  = ../vterm/libvterm/src/encoding.c

@@ -2,16 +2,37 @@
  * Milestone 3 of docs/vaporterm.md: a real NSH session rendered into
  * the framebuffer via libvterm, not static test content anymore.
  *
- * Registers our own character device (/dev/vaporterm0) -- same idiom
- * NuttX's own NXTERM uses, not a pipe/separate-task scheme. Its write
- * callback feeds bytes straight into libvterm and triggers the same
- * damage-driven rendering Milestone 2 already proved works. NSH's
- * stdout/stderr get redirected to that device (dup2, same exact
- * pattern apps/examples/nxterm_main.c uses); stdin is deliberately
- * left untouched -- keyboard input still comes from wherever this
- * process's own stdin is (the host terminal, on sim), matching the
- * "v1 keyboard" stage in vaporterm.md. True in-window typing is later
- * work, not this milestone.
+ * Runs NSH on the SLAVE side of a real NuttX pseudo-terminal
+ * (openpty(), drivers/serial/pty.c) instead of a bespoke character
+ * device -- the same master/slave split every real terminal emulator
+ * uses (xterm, tmux, screen: shell on the slave, emulator reads the
+ * master). This buys two concrete things a hand-rolled device
+ * couldn't: the slave's own OPOST|ONLCR termios handling translates
+ * NSH's bare '\n' to '\r\n' automatically (confirmed directly in
+ * pty_write(), drivers/serial/pty.c) -- no manual translation needed
+ * here any more -- and a real, symmetric channel for keyboard input
+ * later (write to the master), rather than stdin staying bolted to
+ * the host terminal indefinitely.
+ *
+ * The slave has ICANON and ECHO explicitly turned off after opening
+ * it (see main(), tcsetattr below). This is deliberate, not a
+ * leftover default: with ICANON on, read() on the slave would block
+ * until a full line is buffered by the *pty driver itself*, which
+ * would break NSH's own readline (apps/system/readline), which reads
+ * and reacts one raw character at a time (confirmed: it does its own
+ * backspace handling, RL_PUTC(vtbl, ASCII_BS) in readline_common.c).
+ * With ECHO on, the driver would *also* echo every typed character
+ * back out independently of NSH's own echo (see setup.sh --
+ * CONFIG_READLINE_EDIT=n, which makes readline_common.c do its own
+ * RL_PUTC echo), producing doubled output. This is exactly the
+ * standard raw-mode setup any interactive shell puts its controlling
+ * terminal into -- not something specific to us.
+ *
+ * A separate thread (vterm_reader_thread below) owns reading the
+ * master and feeding libvterm, since nsh_consolemain() on the main
+ * thread blocks for the whole session -- same reason a real terminal
+ * emulator's PTY-reading loop and the shell it's driving are always
+ * separate processes/threads, not one.
  */
 
 #include <nuttx/config.h>
@@ -21,6 +42,9 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <errno.h>
+#include <pty.h>
+#include <termios.h>
+#include <pthread.h>
 #include <sys/ioctl.h>
 #include <sys/mman.h>
 #include <sys/boardctl.h>
@@ -39,8 +63,6 @@
 #define VTERM_ROWS   30
 #define VTERM_COLS   80
 
-#define VAPORTERM_DEVPATH "/dev/vaporterm0"
-
 struct vterm_fb_state
 {
   int fd;
@@ -51,9 +73,18 @@ struct vterm_fb_state
   FAR const struct nx_font_s *fontset;
   VTerm *vt;
   VTermScreen *screen;
+  int master;
 };
 
 static struct vterm_fb_state g_st;
+
+struct forward_arg_s
+{
+  int host_stdin;
+  int master;
+};
+
+static struct forward_arg_s g_forward_arg;
 
 static uint16_t g_cellw;
 static uint16_t g_cellh;
@@ -222,112 +253,127 @@ static VTermScreenCallbacks g_callbacks =
 };
 
 /****************************************************************************
- * /dev/vaporterm0 character device -- NSH's stdout/stderr get
- * redirected here. Every write() (i.e. every printf/puts NSH does)
- * lands in vaporterm_write(), which feeds libvterm and lets its
- * damage callback drive the same rendering Milestone 2 proved works.
- * Synchronous, on purpose -- same idiom NXTERM itself uses, no
- * separate task or pipe needed.
+ * Reads everything NSH writes to the PTY slave back out via the
+ * master, and feeds it straight into libvterm -- the damage callback
+ * drives the same rendering Milestone 2 already proved works. No '\n'
+ * translation needed here: the slave's own OPOST|ONLCR already turned
+ * NSH's bare '\n' into '\r\n' before it ever reached this end (see
+ * pty_write() in drivers/serial/pty.c) -- unlike the old
+ * /dev/vaporterm0 device, which had no termios layer at all and
+ * needed that done by hand.
+ *
+ * Runs on its own thread because main() is about to block in
+ * nsh_consolemain() for the whole session -- this loop has to be
+ * running concurrently with that, not before or after it.
  ****************************************************************************/
 
-static ssize_t vaporterm_write(FAR struct file *filep,
-                                FAR const char *buffer, size_t buflen)
+static FAR void *vterm_reader_thread(FAR void *arg)
 {
-  /* A real TTY's line discipline translates outgoing \n to \r\n
-   * (ONLCR) before a terminal ever sees it. /dev/vaporterm0 is a raw
-   * character device with no such translation, so NSH's bare \n
-   * reaches libvterm unchanged -- which, correctly per strict VT100
-   * behaviour, moves the cursor down without returning to column 0.
-   * Confirmed directly: this produces the exact "staircase" pattern
-   * where each new line starts one column further right than the
-   * last. Translating here is the fix, not a workaround -- this is
-   * exactly the job a TTY driver would otherwise be doing for us.
-   * Extra \r before an already-present \r\n is harmless (idempotent),
-   * so no need to check first.
-   */
-
-  size_t i;
+  char buffer[64];
+  ssize_t nread;
 
 #ifdef VAPORTERM_DEBUG_LOG
-  /* TEMPORARY diagnostic: dump exactly what NSH sends, in escaped
-   * form, to a hostfs-backed log -- readable straight from the host
-   * desktop (this file lives wherever /data is mounted from), no
-   * need to fight the very terminal that's misbehaving to see it.
-   * Remove once the typing-shift bug is actually root-caused.
-   */
+  /* Same diagnostic as before, now logging what arrives at the
+   * master rather than what NSH wrote directly -- useful again if
+   * anything about the pty switch itself needs debugging. */
 
-  FILE *dbg = fopen("/data/vaporterm_debug.log", "a");
-
-  if (dbg != NULL)
-    {
-      fprintf(dbg, "write(%zu): ", buflen);
-
-      for (i = 0; i < buflen; i++)
-        {
-          unsigned char c = (unsigned char)buffer[i];
-
-          if (c == '\r')
-            {
-              fprintf(dbg, "\\r");
-            }
-          else if (c == '\n')
-            {
-              fprintf(dbg, "\\n");
-            }
-          else if (c == 0x1b)
-            {
-              fprintf(dbg, "\\e");
-            }
-          else if (c >= 0x20 && c < 0x7f)
-            {
-              fputc(c, dbg);
-            }
-          else
-            {
-              fprintf(dbg, "\\x%02x", c);
-            }
-        }
-
-      fprintf(dbg, "\n");
-      fclose(dbg);
-    }
+  FILE *dbg;
+  size_t i;
 #endif
 
-  for (i = 0; i < buflen; i++)
+  for (; ; )
     {
-      if (buffer[i] == '\n')
+      nread = read(g_st.master, buffer, sizeof(buffer));
+
+      if (nread <= 0)
         {
-          vterm_input_write(g_st.vt, "\r", 1);
+          /* EOF (slave closed) or a real error -- either way, this
+           * session is over; let the thread exit rather than spin.
+           */
+
+          break;
         }
 
-      vterm_input_write(g_st.vt, &buffer[i], 1);
+#ifdef VAPORTERM_DEBUG_LOG
+      dbg = fopen("/data/vaporterm_debug.log", "a");
+
+      if (dbg != NULL)
+        {
+          fprintf(dbg, "read(%zd): ", nread);
+
+          for (i = 0; i < (size_t)nread; i++)
+            {
+              unsigned char c = (unsigned char)buffer[i];
+
+              if (c == '\r')
+                {
+                  fprintf(dbg, "\\r");
+                }
+              else if (c == '\n')
+                {
+                  fprintf(dbg, "\\n");
+                }
+              else if (c == 0x1b)
+                {
+                  fprintf(dbg, "\\e");
+                }
+              else if (c >= 0x20 && c < 0x7f)
+                {
+                  fputc(c, dbg);
+                }
+              else
+                {
+                  fprintf(dbg, "\\x%02x", c);
+                }
+            }
+
+          fprintf(dbg, "\n");
+          fclose(dbg);
+        }
+#endif
+
+      vterm_input_write(g_st.vt, buffer, (size_t)nread);
     }
 
-  return buflen;
+  return NULL;
 }
 
-static int vaporterm_open(FAR struct file *filep)
-{
-  return OK;
-}
+/****************************************************************************
+ * Forwards whatever arrives on this process's ORIGINAL stdin (the host
+ * console, on sim -- saved as host_stdin before stdin got dup2'd onto
+ * the pty slave below) into the pty master. Necessary, not optional:
+ * without this, stdin now points at the slave and nothing would ever
+ * write to the master, so NSH's read() on fd 0 would block forever --
+ * a real regression from the old setup, where stdin stayed on the
+ * host console directly. This is the "v1 keyboard" forwarding path
+ * vaporterm.md called out as later work; the pty switch needed it
+ * done now rather than left dangling.
+ ****************************************************************************/
 
-static int vaporterm_close(FAR struct file *filep)
+static FAR void *vterm_input_forward_thread(FAR void *arg)
 {
-  return OK;
-}
+  FAR struct forward_arg_s *fa = (FAR struct forward_arg_s *)arg;
+  char buffer[64];
+  ssize_t nread;
 
-static const struct file_operations g_vaporterm_fops =
-{
-  vaporterm_open,   /* open */
-  vaporterm_close,  /* close */
-  NULL,             /* read */
-  vaporterm_write,  /* write */
-};
+  for (; ; )
+    {
+      nread = read(fa->host_stdin, buffer, sizeof(buffer));
+
+      if (nread <= 0)
+        {
+          break;
+        }
+
+      write(fa->master, buffer, (size_t)nread);
+    }
+
+  return NULL;
+}
 
 int main(int argc, FAR char *argv[])
 {
   int ret;
-  int fd;
 
   /* A standard sim:nsh boot mounts hostfs at /data via its rcS init
    * script (etc/init.d/rcS: "mount -t hostfs -o fs=. /data") before
@@ -416,39 +462,169 @@ int main(int argc, FAR char *argv[])
   vterm_screen_set_callbacks(g_st.screen, &g_callbacks, NULL);
   vterm_screen_reset(g_st.screen, 1);
 
-  ret = register_driver(VAPORTERM_DEVPATH, &g_vaporterm_fops, 0666, NULL);
+  {
+    int slave;
+    struct termios tio;
+    pthread_t reader;
+    pthread_t forwarder;
 
-  if (ret < 0)
+    ret = openpty(&g_st.master, &slave, NULL, NULL, NULL);
+
+    if (ret < 0)
+      {
+        fprintf(stderr, "vterm_fb: openpty failed: %d\n", errno);
+        vterm_free(g_st.vt);
+        munmap(g_st.fbmem, g_st.pinfo.fblen);
+        close(g_st.fd);
+        return 1;
+      }
+
+    /* Raw mode on the slave: NSH's own readline does per-character
+     * reads and its own echo (see the comment block at the top of
+     * this file for why both ICANON and ECHO have to come off, not
+     * just one). tcgetattr() first rather than zeroing the struct,
+     * so we only touch the two flags that actually need changing and
+     * leave everything else (baud-rate-shaped fields don't apply to
+     * a pty, but c_cc[] special characters etc. do) at the driver's
+     * own defaults.
+     */
+
+    ret = tcgetattr(slave, &tio);
+
+    if (ret < 0)
+      {
+        fprintf(stderr, "vterm_fb: tcgetattr failed: %d\n", errno);
+        close(slave);
+        close(g_st.master);
+        vterm_free(g_st.vt);
+        munmap(g_st.fbmem, g_st.pinfo.fblen);
+        close(g_st.fd);
+        return 1;
+      }
+
+    tio.c_lflag &= ~(ICANON | ECHO);
+    tcsetattr(slave, TCSANOW, &tio);
+
+    /* stdin now moves too, unlike the old /dev/vaporterm0 setup, since
+     * the pty slave is a real bidirectional endpoint and NSH reads
+     * its input from fd 0 same as always. Saving the ORIGINAL stdin
+     * here (the host console, same fd this process would otherwise
+     * have kept reading from) before overwriting fd 0, so
+     * vterm_input_forward_thread has something to forward from --
+     * see that function's comment for why this has to exist now
+     * rather than staying deferred.
+     */
+
+    g_forward_arg.host_stdin = dup(0);
+    g_forward_arg.master     = g_st.master;
+
+    /* NuttX's sim itself is supposed to already put the real host
+     * terminal (the one you launched ./nuttx from) into raw mode --
+     * arch/sim/src/sim/posix/sim_hostuart.c, host_uart_start(),
+     * called from sim_uartinit() when CONFIG_DEV_CONSOLE is set
+     * (default y). Whether that path actually runs for vterm_fb's
+     * boot sequence -- which uses vterm_fb_main as INIT_ENTRYPOINT
+     * directly, bypassing the normal console/rcS bring-up nsh_main
+     * would otherwise go through -- isn't something static reading
+     * of the source can confirm either way. Doing it again here is
+     * cheap and idempotent if NuttX already did it, and is the actual
+     * fix if it didn't: without raw mode on the host side, the host's
+     * own OS-level line discipline would buffer every keystroke until
+     * Enter, which is indistinguishable from the "nothing shows while
+     * typing" symptom actually being about our own code. Logging the
+     * resulting state below so if this *isn't* the whole story, the
+     * debug log says so directly instead of leaving another guess.
+     */
+
     {
-      fprintf(stderr, "vterm_fb: register_driver failed: %d\n", ret);
-      vterm_free(g_st.vt);
-      munmap(g_st.fbmem, g_st.pinfo.fblen);
-      close(g_st.fd);
-      return 1;
+      struct termios host_tio;
+
+      if (tcgetattr(g_forward_arg.host_stdin, &host_tio) == 0)
+        {
+          host_tio.c_lflag &= ~(ICANON | ECHO);
+          host_tio.c_cc[VMIN]  = 1;
+          host_tio.c_cc[VTIME] = 0;
+          tcsetattr(g_forward_arg.host_stdin, TCSANOW, &host_tio);
+        }
+
+#ifdef VAPORTERM_DEBUG_LOG
+      {
+        FILE *dbg = fopen("/data/vaporterm_debug.log", "a");
+
+        if (dbg != NULL)
+          {
+            struct termios check;
+
+            fprintf(dbg, "-- pty/session setup --\n");
+
+            if (tcgetattr(g_forward_arg.host_stdin, &check) == 0)
+              {
+                fprintf(dbg, "host_stdin: ICANON=%d ECHO=%d\n",
+                        !!(check.c_lflag & ICANON),
+                        !!(check.c_lflag & ECHO));
+              }
+            else
+              {
+                fprintf(dbg, "host_stdin: tcgetattr failed: %d\n",
+                        errno);
+              }
+
+            if (tcgetattr(slave, &check) == 0)
+              {
+                fprintf(dbg, "slave: ICANON=%d ECHO=%d\n",
+                        !!(check.c_lflag & ICANON),
+                        !!(check.c_lflag & ECHO));
+              }
+
+            fclose(dbg);
+          }
+      }
+#endif
     }
 
-  fd = open(VAPORTERM_DEVPATH, O_WRONLY);
+    fflush(stdout);
+    fflush(stderr);
 
-  if (fd < 0)
-    {
-      fprintf(stderr, "vterm_fb: open %s failed: %d\n",
-              VAPORTERM_DEVPATH, errno);
-      vterm_free(g_st.vt);
-      munmap(g_st.fbmem, g_st.pinfo.fblen);
-      close(g_st.fd);
-      return 1;
-    }
+    dup2(slave, 0);
+    dup2(slave, 1);
+    dup2(slave, 2);
 
-  /* stdin is deliberately untouched -- NSH keeps reading from wherever
-   * this process's own stdin already is. Only stdout/stderr move. */
+    close(slave);
 
-  fflush(stdout);
-  fflush(stderr);
+    ret = pthread_create(&reader, NULL, vterm_reader_thread, NULL);
 
-  dup2(fd, 1);
-  dup2(fd, 2);
+    if (ret != 0)
+      {
+        fprintf(stderr, "vterm_fb: pthread_create failed: %d\n", ret);
+        close(g_forward_arg.host_stdin);
+        close(g_st.master);
+        vterm_free(g_st.vt);
+        munmap(g_st.fbmem, g_st.pinfo.fblen);
+        close(g_st.fd);
+        return 1;
+      }
 
-  close(fd);
+    pthread_detach(reader);
+
+    ret = pthread_create(&forwarder, NULL, vterm_input_forward_thread,
+                          &g_forward_arg);
+
+    if (ret != 0)
+      {
+        /* Non-fatal: rendering still works without this, just no
+         * keyboard input -- same observable state as before this
+         * milestone, so warn and keep going rather than tearing the
+         * whole session down over it.
+         */
+
+        fprintf(stderr, "vterm_fb: pthread_create (input forward) "
+                "failed: %d (no keyboard input this session)\n", ret);
+      }
+    else
+      {
+        pthread_detach(forwarder);
+      }
+  }
 
   /* Blocks here for the whole NSH session -- same as any other NSH
    * entrypoint. "exit" calls libc exit() directly from deep inside
