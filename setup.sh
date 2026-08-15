@@ -96,27 +96,51 @@ fi
 # isolation and it correctly reproduced "no visible typing" / "first
 # output line lands on the prompt row". The fix is two missing echo
 # calls, applied here since it's NuttX's own source, not ours.
-# Idempotent (checks before patching) and non-fatal if the target
-# lines aren't found (e.g. a different apps branch/structure) --
-# prints a warning and continues rather than breaking the build.
+# Each patch below has its OWN idempotency guard, checked and applied
+# independently -- NOT one shared guard around all of them. A shared
+# guard silently skips every later addition once the first one has
+# ever applied to a reused apps/ checkout (setup.sh doesn't re-clone
+# apps/ if it already exists), which is exactly what happened with the
+# diagnostic marker below: confirmed directly by reproducing it in
+# isolation before writing this fix, not assumed.
 READLINE_SRC="apps/system/readline/readline_common.c"
 
-if [ -f "$READLINE_SRC" ] && ! grep -q "RL_PUTC(vtbl, ch);" "$READLINE_SRC"; then
-  if grep -q "buf\[nch++\] = ch;" "$READLINE_SRC"; then
-    sed -i "/buf\[nch++\] = ch;/a\\          RL_PUTC(vtbl, ch);" "$READLINE_SRC"
-    # submit_line(buf, nch) doesn't take vtbl as a parameter, so the
-    # echo has to go at its call sites (both are inside "if (ch ==
-    # '\\n')" blocks that do have vtbl in scope), not inside its body.
-    # Caught this via a real compile error ("vtbl undeclared") on the
-    # first version of this patch, not assumed.
-    sed -i "s/return submit_line(buf, nch);/RL_PUTC(vtbl, '\\\\n'); return submit_line(buf, nch);/" "$READLINE_SRC"
-    echo "Patched apps/system/readline/readline_common.c: added missing character/newline echo"
-  else
-    echo "WARNING: readline_common.c doesn't match the expected pattern for the" >&2
-    echo "echo patch (different apps branch?) -- skipping, typing may not be" >&2
-    echo "visible in vterm_fb/nxterm. See setup.sh for details." >&2
-  fi
+if [ -f "$READLINE_SRC" ] && ! grep -q "buf\[nch++\] = ch;" "$READLINE_SRC" && ! grep -q "RL_PUTC(vtbl, ch);" "$READLINE_SRC"; then
+  echo "WARNING: readline_common.c doesn't match the expected pattern for the" >&2
+  echo "echo patch (different apps branch?) -- skipping, typing may not be" >&2
+  echo "visible in vterm_fb/nxterm. See setup.sh for details." >&2
 fi
+
+if [ -f "$READLINE_SRC" ] && grep -q "buf\[nch++\] = ch;" "$READLINE_SRC" && ! grep -q "RL_PUTC(vtbl, ch);" "$READLINE_SRC"; then
+  sed -i "/buf\[nch++\] = ch;/a\\          RL_PUTC(vtbl, ch);" "$READLINE_SRC"
+  echo "Patched readline_common.c: added missing plain-character echo"
+fi
+
+# submit_line(buf, nch) doesn't take vtbl as a parameter, so the echo
+# has to go at its call sites (both are inside "if (ch == '\n')"
+# blocks that do have vtbl in scope), not inside its body. Caught this
+# via a real compile error ("vtbl undeclared") on the first version of
+# this patch, not assumed.
+if [ -f "$READLINE_SRC" ] && grep -q "return submit_line(buf, nch);" "$READLINE_SRC" && ! grep -q "RL_PUTC(vtbl, '\\\\n'); return submit_line" "$READLINE_SRC"; then
+  sed -i "s/return submit_line(buf, nch);/RL_PUTC(vtbl, '\\\\n'); return submit_line(buf, nch);/" "$READLINE_SRC"
+  echo "Patched readline_common.c: added missing newline echo"
+fi
+
+# TEMPORARY diagnostic: mark every character the instant it's read,
+# before any dispatch logic decides what to do with it.
+if [ -f "$READLINE_SRC" ] && grep -q "int ch = RL_GETC(vtbl);" "$READLINE_SRC" && ! grep -q "RL_PUTC(vtbl, '<')" "$READLINE_SRC"; then
+  sed -i "s/int ch = RL_GETC(vtbl);/int ch = RL_GETC(vtbl); RL_PUTC(vtbl, '<'); RL_PUTC(vtbl, (ch >= 32 \&\& ch < 127) ? ch : '?'); RL_PUTC(vtbl, '>');/" "$READLINE_SRC"
+  echo "Patched readline_common.c: added diagnostic character marker"
+fi
+
+# These patches modify readline_common.c outside of make's own
+# dependency tracking. NuttX's build has repeatedly not detected
+# source changes made this way (hit this exact class of stale-binary
+# issue multiple times already in this project) -- force removal of
+# any already-compiled object for this file so a real rebuild is
+# guaranteed, rather than trusting make to notice on its own.
+find . -name "readline_common.c.*.o" -delete 2>/dev/null
+
 
 if [ ! -e apps/external ]; then
   echo "Linking apps/external -> vaporOS-nuttx"
