@@ -16,6 +16,11 @@ MODULE    = $(CONFIG_VAPOROS_VTERM_FB)
 ifeq ($(CONFIG_VAPOROS_VTERM_FB),y)
 CFLAGS += ${INCDIR_PREFIX}$(APPDIR)/external/vterm/libvterm/include
 CFLAGS += ${INCDIR_PREFIX}$(APPDIR)/external/vterm/libvterm/src
+# TEMPORARY: dumps every byte NSH writes to /data/vaporterm_debug.log,
+# to actually see the byte stream behind the still-unresolved typing
+# bug instead of guessing further from source reading alone. Remove
+# once that's root-caused.
+CFLAGS += -DVAPORTERM_DEBUG_LOG
 
 CSRCS  = ../vterm/libvterm/src/encoding.c
 CSRCS += ../vterm/libvterm/src/keyboard.c

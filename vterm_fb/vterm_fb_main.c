@@ -247,6 +247,51 @@ static ssize_t vaporterm_write(FAR struct file *filep,
 
   size_t i;
 
+#ifdef VAPORTERM_DEBUG_LOG
+  /* TEMPORARY diagnostic: dump exactly what NSH sends, in escaped
+   * form, to a hostfs-backed log -- readable straight from the host
+   * desktop (this file lives wherever /data is mounted from), no
+   * need to fight the very terminal that's misbehaving to see it.
+   * Remove once the typing-shift bug is actually root-caused.
+   */
+
+  FILE *dbg = fopen("/data/vaporterm_debug.log", "a");
+
+  if (dbg != NULL)
+    {
+      fprintf(dbg, "write(%zu): ", buflen);
+
+      for (i = 0; i < buflen; i++)
+        {
+          unsigned char c = (unsigned char)buffer[i];
+
+          if (c == '\r')
+            {
+              fprintf(dbg, "\\r");
+            }
+          else if (c == '\n')
+            {
+              fprintf(dbg, "\\n");
+            }
+          else if (c == 0x1b)
+            {
+              fprintf(dbg, "\\e");
+            }
+          else if (c >= 0x20 && c < 0x7f)
+            {
+              fputc(c, dbg);
+            }
+          else
+            {
+              fprintf(dbg, "\\x%02x", c);
+            }
+        }
+
+      fprintf(dbg, "\n");
+      fclose(dbg);
+    }
+#endif
+
   for (i = 0; i < buflen; i++)
     {
       if (buffer[i] == '\n')
@@ -385,27 +430,25 @@ int main(int argc, FAR char *argv[])
   close(fd);
 
   /* Blocks here for the whole NSH session -- same as any other NSH
-   * entrypoint. Returns when the user types "exit" (or "poweroff",
-   * which never reaches here since it terminates the process
-   * directly). */
+   * entrypoint. "exit" calls libc exit() directly from deep inside
+   * NSH's own nsh_consoleexit() (apps/nshlib/nsh_console.c, marked
+   * noreturn_function) -- confirmed from source, not assumed -- so
+   * nothing after this call ever runs when the user types "exit".
+   * That's also the conceptually correct behaviour: exit should end
+   * this session, not power off the whole machine, the same way
+   * exiting a shell on a real Unix system doesn't shut down the
+   * computer. "poweroff" is NSH's own real command for that (needs
+   * CONFIG_BOARDCTL_POWEROFF, which setup.sh already enables for this
+   * target) -- confirmed working by piping it through plain sim:nsh
+   * and checking the process actually terminated. No need to
+   * duplicate that here.
+   */
 
   nsh_consolemain(argc, argv);
 
   vterm_free(g_st.vt);
   munmap(g_st.fbmem, g_st.pinfo.fblen);
   close(g_st.fd);
-
-  /* Confirmed directly (piped "poweroff" through plain sim:nsh, exit
-   * code showed the whole process actually terminated, not just this
-   * task returning): native_sim keeps running as a simulated OS after
-   * its boot task exits -- same idle-forever behaviour Milestone 2's
-   * SIGTERM finding already established. Without this, "exit" would
-   * only end the NSH session while the underlying process kept
-   * running, same complaint as needing `kill` to stop it. poweroff
-   * the board explicitly so "exit" gives a real, complete shutdown.
-   */
-
-  boardctl(BOARDIOC_POWEROFF, 0);
 
   return 0;
 }
