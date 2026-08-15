@@ -17,10 +17,13 @@ ifeq ($(CONFIG_VAPOROS_VTERM_FB),y)
 CFLAGS += ${INCDIR_PREFIX}$(APPDIR)/external/vterm/libvterm/include
 CFLAGS += ${INCDIR_PREFIX}$(APPDIR)/external/vterm/libvterm/src
 # Diagnostic logging (dumps every byte NSH writes to
-# /data/vaporterm_debug.log) -- this is how the CLE-vs-READLINE typing
-# bug actually got found. Left in as an opt-in tool, disabled by
-# default now that it's served its purpose; uncomment to use again.
-# CFLAGS += -DVAPORTERM_DEBUG_LOG
+# /data/vaporterm_debug.log) -- re-enabled to investigate why plain
+# character echo still isn't visible despite the readline patch
+# (confirmed correctly placed via direct source inspection, confirmed
+# OUTFD(pstate) is the right fd via source too -- something is still
+# wrong and needs real data, not another guess, same as last time this
+# tool actually resolved something).
+CFLAGS += -DVAPORTERM_DEBUG_LOG
 
 CSRCS  = ../vterm/libvterm/src/encoding.c
 CSRCS += ../vterm/libvterm/src/keyboard.c
