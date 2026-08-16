@@ -339,6 +339,12 @@ kconfig-tweak --enable CONFIG_SYSTEM_VI
 # but it needs to build so `vtermtest` stays available without a manual
 # kconfig-tweak every time this script runs.
 kconfig-tweak --enable CONFIG_VAPOROS_VTERMTEST
+# docs/vaporshell.md, Milestone 1 step 1 -- deliberately enabled
+# unconditionally here (not inside the vterm_fb-only block below), so
+# `nsh> vaporshell` is available from a plain sim:nsh build. Iterating
+# on the shell itself shouldn't require vterm_fb's graphics/pty setup
+# at all until it's actually ready to be wired in as a boot entrypoint.
+kconfig-tweak --enable CONFIG_VAPOROS_VAPORSHELL
 if [ "$BOARD_CONFIG" = "vterm_fb" ]; then
   # vterm_fb_main.c now runs NSH on a real pty (openpty()) instead of
   # its own bespoke character device -- see the comment block at the
