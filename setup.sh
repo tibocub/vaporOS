@@ -26,13 +26,17 @@
 #                        #              feel like a normal terminal
 #   ./setup.sh vterm_fb -- sim:nx11 base again, but vterm_fb itself is
 #                        #              the boot entrypoint (like
-#                        #              nxterm_main is for nxterm) --
-#                        #              not an NSH command. Runs
-#                        #              immediately at boot, no shell
-#                        #              involved. Milestone 2 of
-#                        #              vaporterm.md: static content
-#                        #              rendered straight to /dev/fb0,
-#                        #              no NX window involved
+#                        #              nxterm_main is for nxterm),
+#                        #              running immediately at boot.
+#                        #              Milestone 3 of vaporterm.md: a
+#                        #              real NSH session on a NuttX pty
+#                        #              (openpty()), rendered straight
+#                        #              to /dev/fb0 via libvterm -- no
+#                        #              NX window, and unlike nxterm's
+#                        #              note just below, keyboard input
+#                        #              does work here (forwarded from
+#                        #              the terminal you launched
+#                        #              ./nuttx from into the pty)
 #
 # nxterm isn't an upstream NuttX board config (no sim:nxterm exists) --
 # it's assembled here from sim:nx11's base (X11 framebuffer, NX) with

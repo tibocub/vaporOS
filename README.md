@@ -7,8 +7,9 @@
          /_/
 ```
 
-> A tiny, hackable operating system for micro-controllers (currently focused on
-ESP32, might extend later to other ARM/RISC-V chips).
+> A tiny, hackable operating system, aiming for ARM/RISC-V/x86 devices such as
+Raspberry Pis and ESP32s. Currently runs on NuttX's own simulator only --
+no real hardware target is wired up yet.
 
 VaporOS is an experimental project that aims to build a tiny operating environment for
 ARM/RISC-V/x86 devices such as raspberry pis, esp32, etc. Inspired by retro computers,
@@ -20,7 +21,7 @@ Experimental vaporOS foundation built on [Apache NuttX](https://nuttx.apache.org
 
 ## STATUS
 
-Custom graphical terminal implemented (vterm) - still lacks direct keyboard input in the simulator (must focus the terminal from which vaporOS is run)
+Custom graphical terminal implemented (vterm/vterm_fb) - NSH runs on a real NuttX pty, with live keyboard input and echo working. Input is still only read from the terminal vaporOS was launched from, not the graphical window itself (that's forwarded through, not yet captured directly).
 Basic custom Lua implementation with the vapor API activated by default (just tests for now, no real interresting API features currently)
 
 ---
@@ -29,14 +30,14 @@ Basic custom Lua implementation with the vapor API activated by default (just te
 
 Real POSIX conformance out of the box -- `chdir`/`getcwd`, `lseek`,
 `dup`/`dup2`, `fcntl`, `chmod`/`chown` all work without hand-building a
-compatibility layer, unlike Nuttx where several of these are simply absent.
+compatibility layer, unlike Zephyr where several of these are simply absent.
 NuttX also ships an in-tree Lua interpreter and a POSIX-shaped
 (`open`/`read`/`write`/`ioctl` on `/dev/*`) device driver model, both directly
 relevant to vaporOS's ComputerCraft-inspired goals.
 
 The plan is to mobilize as much of this as possible directly -- NSH as the
-shell, NuttX's own VFS and filesystem support, the in-tree Lua interpreter --
-rather than rebuild what NuttX already provides well.
+temporary shell, NuttX's own VFS and filesystem support, the in-tree Lua
+interpreter -- rather than rebuild what NuttX already provides well.
 
 ---
 
@@ -46,14 +47,16 @@ In terms of available RAM, we could compare the ESP32 to a computer from the 80s
 comparison is useful from a software design perspective, the processor itself is vastly more capable
 than a 80s PC and even the smallest SD card would outcast from a magnitude storage solutions from that time.
 
-| Machine        |                           CPU |                         RAM |                          STORAGE |
-| -------------- | ----------------------------: | --------------------------: | -------------------------------: |
-| Apple II       |                         1 MHz |                       64 KB | Audio cassettes            ~ 1MB |
-| IBM PC XT      |                      4.77 MHz |                      256 KB | HDD                      10-20MB |
-| Macintosh 128K |                         8 MHz |                      128 KB | Floppy disk               400 KB |
-| **ESP32**      |         **240 MHz Dual-Core** |             **520 KB SRAM** | **4MB flash + 1GB-32GB SD card** |
-| **ESP32-C6**   | **160 MHz + 20MHz low power** |             **520 KB SRAM** | **4MB flash + 1GB-32GB SD card** |
-| **ESP32-S3**   |         **240 MHz Dual-Core** | **520 KB SRAM + 8MB PSRAM** | **8MB flash + 1GB-32GB SD card** |
+| Machine        |                                      CPU |                     RAM |             ADDITIONAL/EXTERNAL STORAGE |
+| -------------- | ---------------------------------------: | ----------------------: | --------------------------------------: |
+| Apple II       |                                    1 MHz |              4 to 64 KB |  Audio cassettes / floppy ~ 140 KB-1 MB |
+| IBM PC XT      |                                 4.77 MHz |           128 to 640 KB |                         10 to 20 MB HDD |
+| Macintosh 128K |                                    8 MHz |           128 to 512 KB |              64 KB ROM +  400 KB floppy |
+| **ESP32**      |                    **240 MHz Dual-Core** |              **520 KB** |        **4MB flash + 1GB-32GB SD card** |
+| **ESP32-C6**   |            **160 MHz + 20MHz low power** |              **520 KB** |        **4MB flash + 1GB-32GB SD card** |
+| **ESP32-S3**   |      **240 MHz Dual-Core 32-bit RISC-V** | **520 KB + 16MB PSRAM** |       **16MB flash + 1GB-32GB SD card** |
+| **RP2040**     |                **133 MHz Dual-Core ARM** |  **264 KB + 8MB PSRAM** |        **2MB flash + 1GB-32GB SD card** |
+| **RP2350**     |             **150 MHz Dual-Core RISC-V** |  **520 KB + 8MB PSRAM** |        **4MB flash + 1GB-32GB SD card** |
 
 ---
 
@@ -215,6 +218,11 @@ this repo's apps, and builds the `sim:nsh` config.
 
 boots into a real NSH shell, entirely on your machine, no board required.
 
+`setup.sh` takes an optional board-config argument for other targets --
+`./setup.sh vterm_fb` builds vaporterm, the custom graphical terminal
+described in STATUS above (needs an X server; see the top of `setup.sh`
+for the full list of targets and what each one actually does).
+
 ---
 
 ## LAYOUT
@@ -230,6 +238,24 @@ vaporOS-nuttx/
                 before running anything, so every script run through vlua has it
                 available -- this program IS the vapor-enabled Lua runtime, not
                 a separate thing that later gets pointed at one.
+
+  vterm         Vendored libvterm (MIT) plus vtermtest, a milestone-1 proof
+                that it renders correctly -- see docs/vaporterm.md.
+
+  vterm_fb      vaporterm: a custom graphical terminal, current focus (see
+                STATUS above). Runs a real NSH session on a NuttX pty and
+                renders it straight to /dev/fb0 via libvterm -- built to
+                replace NxTerm, whose own VT100 support is incomplete.
+
+  portable_cat,
+  portable_wc   Portability smoke tests, not compatibility shims -- ordinary
+                C/POSIX code (fopen/fgetc/getopt, no NuttX-specific headers)
+                that's meant to compile and run completely unmodified, as a
+                signal that NuttX's POSIX layer is real. See their own
+                top-of-file comments for more.
+
+  docs/         vapor-api.md and vaporterm.md -- design notes for the vapor
+                API and the vterm_fb milestones, more detailed than this file.
 
   setup.sh      clones nuttx+apps, wires this repo in, compile
 
@@ -396,22 +422,13 @@ Setting up core API, libs, shell, Lua, basic commands to naviagte and execute...
 to compile native vaporOS apps directly from vaporOS as in unix.
 
 In aproximate priority order:
-[WIP] - Temporary Shell (built on zephyr's shell)
-[x] - Run (execute external programs)
-[WIP] - VFS (filesystem API over LittleFS, ramfs, FAT32...)
-    [WIP] - VFS API
-    [WIP] - mount
-    [WIP] - rootfs
-    [WIP] - romfs
-    [WIP] - littlefs backend
-    [ ] - FAT32 backend
 [ ] - Services
     [ ] - cli service manager
     [ ] - maybe runit-like symlink-based service management
     [ ] - service to test services implementation (e.g; a clon of crond)
-[ ] - Lua
+[WIP] - Lua
     [ ] - vaporOS API Lua biddings
-    [ ] - vaporOS native TUI lib/engine for both C and Lua
+[ ] - vaporOS native TUI lib/engine for both C and Lua (and maybe Nim and Rust)
 [ ] - Pkg (package manager)
     [ ] - hosted on github/gitea/gitlab... (kinda like Nim's package manager)
     [ ] - post-install/removal scripts
@@ -421,16 +438,17 @@ In aproximate priority order:
 [ ] - C Compiler
     [ ] - Multiple choice for different system limitations (full gcc if SD card or tcc/chibicc for storage-less environements)
     [ ] - Must be able to compile and install a vaporOS program from sources
-[ ] - Portable C support layer (POSIX-shaped, not POSIX-compliant)
-    [ ] - wrap Zephyr's fs_* API for file/dir ops (open/read/write/stat/opendir/readdir)
-    [ ] - getopt/getopt_long
-    [ ] - no fork/exec/pipe/wait/signals — use native vapor alternatives instead
-[ ] - Improved Shell (rewrite custom or improve zephyr's shell)
+[x] - Portable C support -- no shim layer needed, unlike under Zephyr: NuttX gives
+      real POSIX (open/read/write/stat/opendir/readdir, getopt, fork/exec/pipe/wait/
+      signals where the target supports them) for free. portable_cat and portable_wc
+      exist specifically to prove this -- ordinary C/POSIX code, no vapor-anything,
+      meant to compile and run completely unmodified.
+[ ] - Improved Shell (extend NSH, or a custom one built on top of it)
     [ ] - Make it scriptable to make powerfull one-liners in the repl or write shell scripts (either with lua or with a interpretter)
     [ ] - rc file to persist users configs (aliases, prompt, custom functions, etc)
     [ ] - history persistence
 [ ] - Basic security
-    [ ] zephyr's CONFIG_STACK_CANARIES (stack overflow detection, available for all zephyr supported targets)
+    [ ] NuttX's own CONFIG_STACK_CANARIES (stack overflow detection)
 
 ## BETA
 Usable but still evolving, breaking changes expected
@@ -440,7 +458,7 @@ Usable but still evolving, breaking changes expected
 - Improve system customization and hardware/peripheral compatibility
 
 [ ] - Better security
-    [ ] - optional zephyr CONFIG_USERSPACE for supported targets (gives actual process isolatoin but not possible on all hardware)
+    [ ] - optional NuttX PROTECTED/KERNEL build mode for supported targets (gives actual process isolation but not possible on all hardware)
 [ ] - (maybe) bare (holepunch's lightweight nodeJS-like runtime, NOT nuttx's bare app)
 
 ## RELEASE V1.0
