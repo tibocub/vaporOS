@@ -71,14 +71,18 @@ CSRCS += toys/posix/false.c
 CSRCS += toys/posix/echo.c
 CSRCS += toys/posix/pwd.c
 
-# main.c defines a real int main(argc, argv) -- Application.mk's own
-# MAINSRC handling renames it to toybox_main() at build time, same
-# mechanism vhello/vaporshell already rely on. NuttX's builtin-apps
-# table then holds one "toybox" entry; multicall dispatch inside
-# main.c itself (via generated/newtoys.h's toy_list[], on
-# basename(argv[0])) is what turns that one entry into true/false/
-# echo/pwd -- confirmed against NuttX's own spawn chain in
-# docs/vaporshell.md, no patches needed there.
-MAINSRC = main.c
+# toybox's own main.c is compiled as a plain CSRCS file, not MAINSRC --
+# its own "int main(argc, argv)" is left completely unrenamed (a
+# normal, ordinary, un-exported function named "main"), never called
+# by anyone; vapor_entry.c's toy_exec(argv+1) call is the real
+# dispatch path. See vapor_entry.c's own comment for the full
+# reasoning -- this is deliberate, not an oversight: toybox's own
+# main() unconditionally calls its internal toybox_main() multiplexer,
+# whose naming requirements collide with NuttX's own <PROGNAME>_main
+# renaming convention if main.c is used as MAINSRC directly (confirmed
+# directly by a real build).
+CSRCS += main.c
+
+MAINSRC = vapor_entry.c
 
 include $(APPDIR)/Application.mk

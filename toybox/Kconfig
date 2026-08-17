@@ -10,13 +10,18 @@ config VAPOROS_TOYBOX
 		would work, just resolved by vaporshell's own table instead
 		of the filesystem.
 
-		Registered as "tbx", not "toybox": confirmed by a real
-		build, NuttX's own Application.mk renames this program's
-		real int main(argc, argv) to <PROGNAME>_main via a -Dmain=
-		macro -- and toybox's own main.c already has an unrelated
-		internal function literally named toybox_main() (its own
-		"run as `toybox <applet>`" dispatcher, nothing to do with
-		NuttX). PROGNAME="toybox" collides with it directly. Run
+		Registered as "tbx". vaporshell/NuttX's own Application.mk
+		renames this program's real entry point to <PROGNAME>_main
+		-- and toybox's own main.c unconditionally calls an
+		internal multiplexer function that ALSO needs to be named
+		exactly "toybox_main" (wired to generated/newtoys.h's own
+		hardcoded "toybox" table entry via macro token-pasting, not
+		something a plain rename can dodge). Rather than fight that,
+		this build's real entry point is vapor_entry.c, not
+		toybox's own main.c -- it calls toybox's public toy_exec()
+		directly instead of going through toybox's own main()/
+		toybox_main() dispatcher at all, so PROGNAME never has to
+		match anything toybox's own generated tables hardcode. Run
 		applets as `tbx true`, `tbx echo hi`, etc.
 
 		Deliberately minimal scope for now: true, false, echo, pwd

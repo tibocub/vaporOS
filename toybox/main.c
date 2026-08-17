@@ -341,7 +341,21 @@ void toybox_main(void)
   xputc('\n');
 }
 
-int main(int argc, char *argv[])
+// This is toybox's own real C entry point in upstream, but our own
+// vapor_entry.c never calls it (calls the public toy_exec() directly
+// instead -- see that file's own comment for the full reasoning).
+// Renamed away from "main" so it can't collide with anything else
+// that legitimately wants that literal symbol name -- confirmed by a
+// real link this genuinely happens: NuttX's own sim architecture has
+// its OWN real "main" (arch/sim/src/sim/sim_head.c, the actual host-
+// process entry point for the whole simulated OS image, a completely
+// different thing from any app-level entry point convention), and a
+// plain, un-renamed "int main()" sitting in this file -- even though
+// nothing calls it -- still collides at final link time as a
+// duplicate global symbol. Confirmed unused: nothing else in this
+// file's own scope references the literal name "main" (checked
+// toys.h, lib/*.h, and every generated/*.h).
+int toybox_unused_main(int argc, char *argv[])
 {
   // Nommu has special reentry path, !stacktop = "vfork/exec self happened"
   if (!CFG_TOYBOX_FORK && (0x80 & **argv)) **argv &= 0x7f;
