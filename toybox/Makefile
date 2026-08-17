@@ -76,6 +76,14 @@ CSRCS += toys/posix/rmdir.c
 CSRCS += toys/posix/touch.c
 CSRCS += toys/posix/printf.c
 CSRCS += toys/posix/rm.c
+CSRCS += toys/posix/ls.c
+
+# cp.c provides both cp_main and mv_main (NEWTOY(mv, ...) in
+# generated/newtoys.h wires to mv_main via name##_main token-pasting,
+# same convention as everything else) -- no separate mv.c exists
+# upstream, so CONFIG_MV=y is what actually enables it, not another
+# CSRCS line.
+CSRCS += toys/posix/cp.c
 
 # toybox's own main.c is compiled as a plain CSRCS file, not MAINSRC --
 # its own "int main(argc, argv)" is left completely unrenamed (a

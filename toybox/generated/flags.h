@@ -411,7 +411,7 @@
 #undef FLAG_l
 #endif
 
-// cp   <1(preserve):;D(parents)RHLPprudaslv(verbose)nF(remove-destination)fit:T[-HLPd][-niu][+Rr]
+// cp <1(preserve):;D(parents)RHLPprudaslv(verbose)nF(remove-destination)fit:T[-HLPd][-niu][+Rr] <1(preserve):;D(parents)RHLPprudaslv(verbose)nF(remove-destination)fit:T[-HLPd][-niu][+Rr]
 #undef OPTSTR_cp
 #define OPTSTR_cp "<1(preserve):;D(parents)RHLPprudaslv(verbose)nF(remove-destination)fit:T[-HLPd][-niu][+Rr]"
 #ifdef CLEANUP_cp
@@ -1916,7 +1916,7 @@
 #undef FLAG_S
 #endif
 
-// ls   (sort):(color):;(full-time)(show-control-chars)ÿ(block-size)#=1024<1¡(group-directories-first)þZgoACFHLNRSUXabcdfhikl@mnpqrstuw#=80<0x1[-Cxm1][-Cxml][-Cxmo][-Cxmg][-cu][-ftS][-HL][-Nqb][-kÿ]
+// ls (sort):(color):;(full-time)(show-control-chars)ÿ(block-size)#=1024<1¡(group-directories-first)þZgoACFHLNRSUXabcdfhikl@mnpqrstuw#=80<0x1[-Cxm1][-Cxml][-Cxmo][-Cxmg][-cu][-ftS][-HL][-Nqb][-kÿ] (sort):(color):;(full-time)(show-control-chars)ÿ(block-size)#=1024<1¡(group-directories-first)þZgoACFHLNRSUXabcdfhikl@mnpqrstuw#=80<0x1[-Cxm1][-Cxml][-Cxmo][-Cxmg][-cu][-ftS][-HL][-Nqb][-kÿ]
 #undef OPTSTR_ls
 #define OPTSTR_ls "(sort):(color):;(full-time)(show-control-chars)ÿ(block-size)#=1024<1¡(group-directories-first)þZgoACFHLNRSUXabcdfhikl@mnpqrstuw#=80<0x1[-Cxm1][-Cxml][-Cxmo][-Cxmg][-cu][-ftS][-HL][-Nqb][-kÿ]"
 #ifdef CLEANUP_ls
@@ -2235,7 +2235,7 @@
 #undef FLAG_q
 #endif
 
-// mv   <1x(swap)v(verbose)nF(remove-destination)fit:T[-ni]
+// mv <1x(swap)v(verbose)nF(remove-destination)fit:T[-ni] <1x(swap)v(verbose)nF(remove-destination)fit:T[-ni]
 #undef OPTSTR_mv
 #define OPTSTR_mv "<1x(swap)v(verbose)nF(remove-destination)fit:T[-ni]"
 #ifdef CLEANUP_mv
@@ -4393,26 +4393,26 @@
 #ifndef TT
 #define TT this.cp
 #endif
-#define FLAG_T (FORCED_FLAG<<0)
-#define FLAG_t (FORCED_FLAG<<1)
-#define FLAG_i (FORCED_FLAG<<2)
-#define FLAG_f (FORCED_FLAG<<3)
-#define FLAG_F (FORCED_FLAG<<4)
-#define FLAG_n (FORCED_FLAG<<5)
-#define FLAG_v (FORCED_FLAG<<6)
-#define FLAG_l (FORCED_FLAG<<7)
-#define FLAG_s (FORCED_FLAG<<8)
-#define FLAG_a (FORCED_FLAG<<9)
-#define FLAG_d (FORCED_FLAG<<10)
-#define FLAG_u (FORCED_FLAG<<11)
-#define FLAG_r (FORCED_FLAG<<12)
-#define FLAG_p (FORCED_FLAG<<13)
-#define FLAG_P (FORCED_FLAG<<14)
-#define FLAG_L (FORCED_FLAG<<15)
-#define FLAG_H (FORCED_FLAG<<16)
-#define FLAG_R (FORCED_FLAG<<17)
-#define FLAG_D (FORCED_FLAG<<18)
-#define FLAG_preserve (FORCED_FLAG<<19)
+#define FLAG_T (1LL<<0)
+#define FLAG_t (1LL<<1)
+#define FLAG_i (1LL<<2)
+#define FLAG_f (1LL<<3)
+#define FLAG_F (1LL<<4)
+#define FLAG_n (1LL<<5)
+#define FLAG_v (1LL<<6)
+#define FLAG_l (1LL<<7)
+#define FLAG_s (1LL<<8)
+#define FLAG_a (1LL<<9)
+#define FLAG_d (1LL<<10)
+#define FLAG_u (1LL<<11)
+#define FLAG_r (1LL<<12)
+#define FLAG_p (1LL<<13)
+#define FLAG_P (1LL<<14)
+#define FLAG_L (1LL<<15)
+#define FLAG_H (1LL<<16)
+#define FLAG_R (1LL<<17)
+#define FLAG_D (1LL<<18)
+#define FLAG_preserve (1LL<<19)
 #endif
 
 #ifdef FOR_cpio
@@ -5779,46 +5779,46 @@
 #ifndef TT
 #define TT this.ls
 #endif
-#define FLAG_1 (FORCED_FLAG<<0)
-#define FLAG_x (FORCED_FLAG<<1)
-#define FLAG_w (FORCED_FLAG<<2)
-#define FLAG_u (FORCED_FLAG<<3)
-#define FLAG_t (FORCED_FLAG<<4)
-#define FLAG_s (FORCED_FLAG<<5)
-#define FLAG_r (FORCED_FLAG<<6)
-#define FLAG_q (FORCED_FLAG<<7)
-#define FLAG_p (FORCED_FLAG<<8)
-#define FLAG_n (FORCED_FLAG<<9)
-#define FLAG_m (FORCED_FLAG<<10)
-#define FLAG_l (FORCED_FLAG<<11)
-#define FLAG_k (FORCED_FLAG<<12)
-#define FLAG_i (FORCED_FLAG<<13)
-#define FLAG_h (FORCED_FLAG<<14)
-#define FLAG_f (FORCED_FLAG<<15)
-#define FLAG_d (FORCED_FLAG<<16)
-#define FLAG_c (FORCED_FLAG<<17)
-#define FLAG_b (FORCED_FLAG<<18)
-#define FLAG_a (FORCED_FLAG<<19)
-#define FLAG_X (FORCED_FLAG<<20)
-#define FLAG_U (FORCED_FLAG<<21)
-#define FLAG_S (FORCED_FLAG<<22)
-#define FLAG_R (FORCED_FLAG<<23)
-#define FLAG_N (FORCED_FLAG<<24)
-#define FLAG_L (FORCED_FLAG<<25)
-#define FLAG_H (FORCED_FLAG<<26)
-#define FLAG_F (FORCED_FLAG<<27)
-#define FLAG_C (FORCED_FLAG<<28)
-#define FLAG_A (FORCED_FLAG<<29)
-#define FLAG_o (FORCED_FLAG<<30)
-#define FLAG_g (FORCED_FLAG<<31)
-#define FLAG_Z (FORCED_FLAG<<32)
-#define FLAG_X7E (FORCED_FLAG<<33)
-#define FLAG_X21 (FORCED_FLAG<<34)
-#define FLAG_X7F (FORCED_FLAG<<35)
-#define FLAG_show_control_chars (FORCED_FLAG<<36)
-#define FLAG_full_time (FORCED_FLAG<<37)
-#define FLAG_color (FORCED_FLAG<<38)
-#define FLAG_sort (FORCED_FLAG<<39)
+#define FLAG_1 (1LL<<0)
+#define FLAG_x (1LL<<1)
+#define FLAG_w (1LL<<2)
+#define FLAG_u (1LL<<3)
+#define FLAG_t (1LL<<4)
+#define FLAG_s (1LL<<5)
+#define FLAG_r (1LL<<6)
+#define FLAG_q (1LL<<7)
+#define FLAG_p (1LL<<8)
+#define FLAG_n (1LL<<9)
+#define FLAG_m (1LL<<10)
+#define FLAG_l (1LL<<11)
+#define FLAG_k (1LL<<12)
+#define FLAG_i (1LL<<13)
+#define FLAG_h (1LL<<14)
+#define FLAG_f (1LL<<15)
+#define FLAG_d (1LL<<16)
+#define FLAG_c (1LL<<17)
+#define FLAG_b (1LL<<18)
+#define FLAG_a (1LL<<19)
+#define FLAG_X (1LL<<20)
+#define FLAG_U (1LL<<21)
+#define FLAG_S (1LL<<22)
+#define FLAG_R (1LL<<23)
+#define FLAG_N (1LL<<24)
+#define FLAG_L (1LL<<25)
+#define FLAG_H (1LL<<26)
+#define FLAG_F (1LL<<27)
+#define FLAG_C (1LL<<28)
+#define FLAG_A (1LL<<29)
+#define FLAG_o (1LL<<30)
+#define FLAG_g (1LL<<31)
+#define FLAG_Z (1LL<<32)
+#define FLAG_X7E (1LL<<33)
+#define FLAG_X21 (1LL<<34)
+#define FLAG_X7F (1LL<<35)
+#define FLAG_show_control_chars (1LL<<36)
+#define FLAG_full_time (1LL<<37)
+#define FLAG_color (1LL<<38)
+#define FLAG_sort (1LL<<39)
 #endif
 
 #ifdef FOR_lsattr
@@ -6073,14 +6073,14 @@
 #ifndef TT
 #define TT this.mv
 #endif
-#define FLAG_T (FORCED_FLAG<<0)
-#define FLAG_t (FORCED_FLAG<<1)
-#define FLAG_i (FORCED_FLAG<<2)
-#define FLAG_f (FORCED_FLAG<<3)
-#define FLAG_F (FORCED_FLAG<<4)
-#define FLAG_n (FORCED_FLAG<<5)
-#define FLAG_v (FORCED_FLAG<<6)
-#define FLAG_x (FORCED_FLAG<<7)
+#define FLAG_T (1LL<<0)
+#define FLAG_t (1LL<<1)
+#define FLAG_i (1LL<<2)
+#define FLAG_f (1LL<<3)
+#define FLAG_F (1LL<<4)
+#define FLAG_n (1LL<<5)
+#define FLAG_v (1LL<<6)
+#define FLAG_x (1LL<<7)
 #endif
 
 #ifdef FOR_nbd_client

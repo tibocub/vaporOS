@@ -34,12 +34,12 @@
 #define CFG_COMM 0
 #define USE_COMM(...)
 #define SKIP_COMM(...) __VA_ARGS__
-#define CFG_CP 0
-#define USE_CP(...)
-#define SKIP_CP(...) __VA_ARGS__
-#define CFG_MV 0
-#define USE_MV(...)
-#define SKIP_MV(...) __VA_ARGS__
+#define CFG_CP 1
+#define USE_CP(...) __VA_ARGS__
+#define SKIP_CP(...)
+#define CFG_MV 1
+#define USE_MV(...) __VA_ARGS__
+#define SKIP_MV(...)
 #define CFG_INSTALL 0
 #define USE_INSTALL(...)
 #define SKIP_INSTALL(...) __VA_ARGS__
@@ -130,9 +130,9 @@
 #define CFG_LOGGER 0
 #define USE_LOGGER(...)
 #define SKIP_LOGGER(...) __VA_ARGS__
-#define CFG_LS 0
-#define USE_LS(...)
-#define SKIP_LS(...) __VA_ARGS__
+#define CFG_LS 1
+#define USE_LS(...) __VA_ARGS__
+#define SKIP_LS(...)
 #define CFG_MKDIR 1
 #define USE_MKDIR(...) __VA_ARGS__
 #define SKIP_MKDIR(...)
