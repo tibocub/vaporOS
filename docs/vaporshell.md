@@ -157,12 +157,21 @@ NSH's own syntax don't quietly break.
 
 - [x] PATH resolution (`posix_spawnp` + `CONFIG_LIBC_ENVPATH`)
 - [x] Program execution (`posix_spawn`, not `fork`+`exec`)
-- [ ] Multicall dispatch table: `{name -> entry point, synthesized argv[0]}`,
-      resolved before falling back to PATH search. This is the actual
-      mechanism that makes toybox usable as native-feeling commands
-      (`ls`, `cp`, ...) instead of typing `toybox ls` -- see the
-      toybox/vaporshell discussion for why this needs to live in the
-      shell rather than as N generated stub binaries.
+- [x] Multicall dispatch table: falls back to it only on `ENOENT`
+      from `posix_spawnp` (a real installed program with the same
+      name still wins, same precedence a real Unix shell gives
+      `$PATH` over any builtin utility replacement), spawning `tbx`
+      with `argv[0]="tbx"` and the original typed command prepended
+      as `argv[1]` -- **not** the `argv[0]`-rewriting convention
+      originally planned below (superseded, see "Toybox port" below
+      for why: toybox's own `main()`/`toybox_main()` turned out to be
+      unusable directly once NuttX's own `<PROGNAME>_main` renaming
+      collided with it, so the real entry point became `tbx`'s own
+      `vapor_entry.c`, which expects this different argv shape).
+      Table is hand-maintained in `vaporshell_main.c`
+      (`g_toybox_applets[]`), not generated from toybox's own build
+      config -- reasonable at 10 applets, worth revisiting if that
+      list grows much longer.
 - [x] Builtins -- `cd` implemented (mutates the shell's own state, so
       it can never be a spawned program regardless of how good
       NuttX's spawn story is). `export`, others: not yet.
@@ -177,14 +186,12 @@ NSH's own syntax don't quietly break.
 the actual generated `apps/builtin/builtin_list.h` from a real build
 -- NSH's own commands (`ls`, `cat`, `pwd`, `cd`, ...) are internal to
 `nshlib`'s own command table, not separate entries in the builtin-apps
-table `posix_spawn` resolves against. Right now, only separately-
-registered `apps/external` programs (`vhello`, `portable_wc`,
-`portable_cat`, `vlua`, `vi`, `vaporshell` itself) are actually
-spawnable from vaporshell. Typing `ls` fails with "No such file or
-directory" until toybox (or something like it) exists as real,
-separately-spawnable programs -- not a bug, the actual current state,
-and a concrete reason the toybox port matters architecturally, not
-just for command coverage.
+table `posix_spawn` resolves against. Toybox (`tbx`) now fills this
+gap for the applets it implements (`true`, `false`, `echo`, `pwd`,
+`cat`, `mkdir`, `rmdir`, `touch`, `printf`, `rm`) via the multicall
+table above; anything else still spawns only if it's a separately-
+registered `apps/external` program (`vhello`, `portable_wc`,
+`portable_cat`, `vlua`, `vi`, `vaporshell` itself).
 
 ### Environment / variables
 
@@ -244,12 +251,44 @@ looks it up in a build-generated `toy_list[]` table (name -> applet
 Checked NuttX's own spawn chain (`binfmt_exec.c` -> `binfmt/builtin.c`)
 confirms `argv[]` passes through from caller to the started task's
 `main()` untouched -- nothing overwrites `argv[0]` with the resolved
-program name. So vaporshell's multicall table works exactly as
-designed: `posix_spawnp(&pid, "toybox", ..., argv, environ)` with
-`argv[0]` set to whatever applet name matched (`"ls"`, `"cp"`, ...)
-correctly reaches that applet's `_main()`, the same way a real Unix
-symlink-based multicall install would, just resolved by vaporshell's
-own table instead of the filesystem.
+program name.
+
+**Superseded by a real build failure, not by further reading:** the
+paragraph above describes what was *planned* -- spawning the program
+literally as `toybox` with `argv[0]` rewritten to the matched applet
+name, using toybox's own `main()`/`toybox_main()` dispatch directly.
+That turned out to be unusable as-is. Toybox's own `main.c`
+unconditionally calls an internal `toybox_main()` multiplexer whose
+name is required (via `NEWTOY`'s `name##_main` token-pasting, wired
+in more than one place in `toys.h`, not just one call site) to match
+`generated/newtoys.h`'s own hardcoded `"toybox"` table entry.
+Separately, NuttX's own `Application.mk` renames whatever program's
+real `int main(argc, argv)` to `<PROGNAME>_main` -- with
+`PROGNAME="toybox"` (required for the runtime string match above to
+work) that's *also* literally `toybox_main`, a genuine symbol
+collision, confirmed by a real build, not fixable by picking a
+different `PROGNAME` alone (tried first: renaming the binary to
+`tbx` fixed the collision but broke the runtime dispatch, since
+`toy_find("tbx")` never matches the table's hardcoded `"toybox"`
+entry).
+
+Real fix: the program is registered as `tbx`, and its actual entry
+point is a new file, `toybox/vapor_entry.c` -- it never calls
+toybox's own `main()`/`toybox_main()` at all, calling the public
+`toy_exec()` (toybox's own stable function for exactly this "dispatch
+directly on argv[0]" case) instead. Toybox's own `main.c` is compiled
+as a plain, unused `CSRCS` file; even its own `int main(argc, argv)`
+had to be renamed away (to `toybox_unused_main`) since NuttX's *sim*
+architecture has its own genuine `main()` (`arch/sim/src/sim/sim_head.c`,
+the real host-process entry point for the whole simulated OS image) --
+a plain, unrenamed, never-called `main()` sitting in a static library
+still collides with that at final link, confirmed by a real
+`multiple definition of 'main'` linker error.
+
+Practical upshot for vaporshell: invocation is `argv[0]="tbx"` with
+the applet name as `argv[1]` (`vapor_entry.c` calls `toy_exec(argv+1)`),
+not the `argv[0]`-rewriting convention described above -- see the
+multicall dispatch table entry in the Feature list.
 
 **Two real bugs found and fixed in toybox's own `lib/portability.h`**
 (patch kept separately, against toybox upstream, not this repo --
@@ -263,20 +302,42 @@ worth submitting there too once proven out further):
   needed a NuttX-specific case using `f_bsize` for both, same as the
   pre-`f_frsize` Unix convention.
 
-**Current real blocker, confirmed not assumed:** `paths.h` (BSD-
-derived, provides `_PATH_DEFPATH` and friends) doesn't exist
-anywhere in NuttX's tree at all. Toybox's `toys.h` includes it
-unconditionally. Needs a small compatibility header providing
-whatever subset of `_PATH_*` macros toybox's code actually
-references -- scoped, not a deep architectural problem, just the
-next concrete thing to solve.
+**Resolved (was "current real blocker" here):** `paths.h` (BSD-
+derived, provides `_PATH_DEFPATH` and friends) doesn't exist anywhere
+in NuttX's tree at all, and toybox's `toys.h` includes it
+unconditionally. Fixed with a small compatibility header
+(`toybox/nuttx-shims/paths.h`) providing just `_PATH_DEFPATH`, the
+only macro from it actually referenced anywhere in this project's
+toybox scope.
 
 Also resolved along the way, worth remembering for next time rather
 than re-discovering: NuttX's own math library headers
 (`libs/libm/newlib/include/math.h` and its `machine/ieeefp.h`) aren't
 copied into the top-level `include/` until a build actually reaches
 that step -- an incomplete build's `include/` directory will be
-missing `math.h` even though NuttX genuinely has it.
+missing `math.h` even though NuttX genuinely has it. In the end this
+didn't matter for the actual fix: only `fabs()`/`sin()` are referenced
+anywhere in this project's toybox scope, both from a single dead-for-
+this-applet-set call site, so a small header-only shim
+(`toybox/nuttx-shims/math.h`) was used instead of pulling in all of
+newlib's real `libm` (which has its own portability issues against a
+modern host `gcc`, hit directly: `libm/common/nanl.c` uses
+`__GNUC_PREREQ`, a glibc-only macro).
+
+**Current state, not just the original spike:** significantly more
+ground covered since the paragraphs above were written -- real fixes
+also landed for `lib/env.c` (NuttX has no setter for the whole
+`environ` array, unlike glibc/BSD; delegates to NuttX's own
+`setenv`/`unsetenv`/`clearenv` instead), a `CODE` macro collision
+with NuttX's own `<nuttx/compiler.h>`, several more `portability.c`
+gaps (`dev_minor`/`major`/`makedev`, `fs_type_name`, honest stubs for
+mount-table/file-watch/xattr/`chroot`/raw `syscall`, none of which
+NuttX has equivalents for), and the `toybox_main`/`vapor_entry.c`
+saga above. Applet count: `true`, `false`, `echo`, `pwd` (batch 1),
+`cat`, `mkdir`, `rmdir`, `touch`, `printf`, `rm` (batch 2). `ls`,
+`cp`, `mv` deliberately deferred to their own batch -- much larger,
+heavier applets (directory traversal, permission/symlink handling)
+likely to surface new platform gaps the way earlier batches did.
 
 ## Open questions
 
@@ -284,13 +345,18 @@ missing `math.h` even though NuttX genuinely has it.
   work cleanly for vaporshell, or does something else in that branch
   also assume NSH-specific behavior we'd need to rip out? Needs a real
   test, not a read of the source alone.
-- Multicall dispatch table format/ownership -- generated from toybox's
-  own applet list at build time, or hand-maintained? Affects how much
-  work it is to track toybox upstream changes later.
 - Where vaporshell's rc file lives on sim right now (`/data/...`,
   hostfs-backed) vs. where it should live once real hardware storage
   exists -- worth deciding the sim-only interim path explicitly so it
   doesn't quietly become the permanent one.
+
+**Answered:** multicall dispatch table format/ownership -- hand-
+maintained (`g_toybox_applets[]` in `vaporshell_main.c`), not
+generated from toybox's own build config. Reasonable at the current
+scope (10 applets); revisit if that list grows much longer, since
+hand-maintaining it means it can drift out of sync with
+`toybox/Makefile`'s own `CSRCS` list if one gets updated without the
+other.
 
 ## Milestones (proposed, mirroring `vaporterm.md`'s staging)
 
