@@ -10,9 +10,9 @@
 #define CFG_CAL 0
 #define USE_CAL(...)
 #define SKIP_CAL(...) __VA_ARGS__
-#define CFG_CAT 0
-#define USE_CAT(...)
-#define SKIP_CAT(...) __VA_ARGS__
+#define CFG_CAT 1
+#define USE_CAT(...) __VA_ARGS__
+#define SKIP_CAT(...)
 #define CFG_CHGRP 0
 #define USE_CHGRP(...)
 #define SKIP_CHGRP(...) __VA_ARGS__
@@ -133,9 +133,9 @@
 #define CFG_LS 0
 #define USE_LS(...)
 #define SKIP_LS(...) __VA_ARGS__
-#define CFG_MKDIR 0
-#define USE_MKDIR(...)
-#define SKIP_MKDIR(...) __VA_ARGS__
+#define CFG_MKDIR 1
+#define USE_MKDIR(...) __VA_ARGS__
+#define SKIP_MKDIR(...)
 #define CFG_MKFIFO 0
 #define USE_MKFIFO(...)
 #define SKIP_MKFIFO(...) __VA_ARGS__
@@ -157,9 +157,9 @@
 #define CFG_PATCH 0
 #define USE_PATCH(...)
 #define SKIP_PATCH(...) __VA_ARGS__
-#define CFG_PRINTF 0
-#define USE_PRINTF(...)
-#define SKIP_PRINTF(...) __VA_ARGS__
+#define CFG_PRINTF 1
+#define USE_PRINTF(...) __VA_ARGS__
+#define SKIP_PRINTF(...)
 #define CFG_PS 0
 #define USE_PS(...)
 #define SKIP_PS(...) __VA_ARGS__
@@ -181,12 +181,12 @@
 #define CFG_RENICE 0
 #define USE_RENICE(...)
 #define SKIP_RENICE(...) __VA_ARGS__
-#define CFG_RM 0
-#define USE_RM(...)
-#define SKIP_RM(...) __VA_ARGS__
-#define CFG_RMDIR 0
-#define USE_RMDIR(...)
-#define SKIP_RMDIR(...) __VA_ARGS__
+#define CFG_RM 1
+#define USE_RM(...) __VA_ARGS__
+#define SKIP_RM(...)
+#define CFG_RMDIR 1
+#define USE_RMDIR(...) __VA_ARGS__
+#define SKIP_RMDIR(...)
 #define CFG_SED 0
 #define USE_SED(...)
 #define SKIP_SED(...) __VA_ARGS__
@@ -220,9 +220,9 @@
 #define CFG_TIME 0
 #define USE_TIME(...)
 #define SKIP_TIME(...) __VA_ARGS__
-#define CFG_TOUCH 0
-#define USE_TOUCH(...)
-#define SKIP_TOUCH(...) __VA_ARGS__
+#define CFG_TOUCH 1
+#define USE_TOUCH(...) __VA_ARGS__
+#define SKIP_TOUCH(...)
 #define CFG_TRUE 1
 #define USE_TRUE(...) __VA_ARGS__
 #define SKIP_TRUE(...)

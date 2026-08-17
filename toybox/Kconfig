@@ -1,5 +1,5 @@
 config VAPOROS_TOYBOX
-	tristate "toybox -- vendored true/false/echo/pwd multicall (docs/vaporshell.md)"
+	tristate "toybox -- vendored multicall, 10 applets so far (docs/vaporshell.md)"
 	default n
 	---help---
 		Vendored toybox (codeberg.org/landley/toybox), patched for
@@ -24,10 +24,14 @@ config VAPOROS_TOYBOX
 		match anything toybox's own generated tables hardcode. Run
 		applets as `tbx true`, `tbx echo hi`, etc.
 
-		Deliberately minimal scope for now: true, false, echo, pwd
-		only -- proves the pipeline before committing to toybox's
-		full ~218-command set. See the Makefile in this directory
-		for what expanding that scope actually requires (mainly:
+		Batch 2: added cat, mkdir, rmdir, touch, printf, rm --
+		deliberately still not the full ~218-command set (ls/cp/mv
+		deferred: much larger, heavier applets -- dirtree traversal,
+		permission/symlink handling -- likely to surface new
+		platform gaps the way the original 4-applet batch did, so
+		kept as their own separate, carefully-verified batch rather
+		than folded in here). See the Makefile in this directory
+		for what expanding scope actually requires (mainly:
 		regenerating generated/*.h on a host toybox checkout).
 
 if VAPOROS_TOYBOX

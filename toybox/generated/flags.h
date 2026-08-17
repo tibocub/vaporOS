@@ -237,7 +237,7 @@
 #undef FLAG_h
 #endif
 
-// cat   uvte
+// cat uvte uvte
 #undef OPTSTR_cat
 #define OPTSTR_cat "uvte"
 #ifdef CLEANUP_cat
@@ -2103,9 +2103,9 @@
 #undef FLAG_c
 #endif
 
-// mkdir   <1Z:vp(parent)(parents)m:
+// mkdir <1vp(parent)(parents)m: <1Z:vp(parent)(parents)m:
 #undef OPTSTR_mkdir
-#define OPTSTR_mkdir "<1Z:vp(parent)(parents)m:"
+#define OPTSTR_mkdir "<1vp(parent)(parents)m:"
 #ifdef CLEANUP_mkdir
 #undef CLEANUP_mkdir
 #undef FOR_mkdir
@@ -2584,7 +2584,7 @@
 #undef FLAG_null
 #endif
 
-// printf   <1?^
+// printf <1?^ <1?^
 #undef OPTSTR_printf
 #define OPTSTR_printf "<1?^"
 #ifdef CLEANUP_printf
@@ -2791,7 +2791,7 @@
 #undef FOR_rfkill
 #endif
 
-// rm   f(force)iRrv[-fi]
+// rm f(force)iRrv[-fi] f(force)iRrv[-fi]
 #undef OPTSTR_rm
 #define OPTSTR_rm "f(force)iRrv[-fi]"
 #ifdef CLEANUP_rm
@@ -2804,7 +2804,7 @@
 #undef FLAG_f
 #endif
 
-// rmdir   <1(ignore-fail-on-non-empty)p(parents)
+// rmdir <1(ignore-fail-on-non-empty)p(parents) <1(ignore-fail-on-non-empty)p(parents)
 #undef OPTSTR_rmdir
 #define OPTSTR_rmdir "<1(ignore-fail-on-non-empty)p(parents)"
 #ifdef CLEANUP_rmdir
@@ -3469,7 +3469,7 @@
 #undef FLAG_O
 #endif
 
-// touch   <1acd:fmr:t:h[!dtr]
+// touch <1acd:fmr:t:h[!dtr] <1acd:fmr:t:h[!dtr]
 #undef OPTSTR_touch
 #define OPTSTR_touch "<1acd:fmr:t:h[!dtr]"
 #ifdef CLEANUP_touch
@@ -4235,10 +4235,10 @@
 #ifndef TT
 #define TT this.cat
 #endif
-#define FLAG_e (FORCED_FLAG<<0)
-#define FLAG_t (FORCED_FLAG<<1)
-#define FLAG_v (FORCED_FLAG<<2)
-#define FLAG_u (FORCED_FLAG<<3)
+#define FLAG_e (1LL<<0)
+#define FLAG_t (1LL<<1)
+#define FLAG_v (1LL<<2)
+#define FLAG_u (1LL<<3)
 #endif
 
 #ifdef FOR_cd
@@ -5952,9 +5952,9 @@
 #ifndef TT
 #define TT this.mkdir
 #endif
-#define FLAG_m (FORCED_FLAG<<0)
-#define FLAG_p (FORCED_FLAG<<1)
-#define FLAG_v (FORCED_FLAG<<2)
+#define FLAG_m (1LL<<0)
+#define FLAG_p (1LL<<1)
+#define FLAG_v (1LL<<2)
 #define FLAG_Z (FORCED_FLAG<<3)
 #endif
 
@@ -6588,11 +6588,11 @@
 #ifndef TT
 #define TT this.rm
 #endif
-#define FLAG_v (FORCED_FLAG<<0)
-#define FLAG_r (FORCED_FLAG<<1)
-#define FLAG_R (FORCED_FLAG<<2)
-#define FLAG_i (FORCED_FLAG<<3)
-#define FLAG_f (FORCED_FLAG<<4)
+#define FLAG_v (1LL<<0)
+#define FLAG_r (1LL<<1)
+#define FLAG_R (1LL<<2)
+#define FLAG_i (1LL<<3)
+#define FLAG_f (1LL<<4)
 #endif
 
 #ifdef FOR_rmdir
@@ -6600,8 +6600,8 @@
 #ifndef TT
 #define TT this.rmdir
 #endif
-#define FLAG_p (FORCED_FLAG<<0)
-#define FLAG_ignore_fail_on_non_empty (FORCED_FLAG<<1)
+#define FLAG_p (1LL<<0)
+#define FLAG_ignore_fail_on_non_empty (1LL<<1)
 #endif
 
 #ifdef FOR_rmmod
@@ -7215,14 +7215,14 @@
 #ifndef TT
 #define TT this.touch
 #endif
-#define FLAG_h (FORCED_FLAG<<0)
-#define FLAG_t (FORCED_FLAG<<1)
-#define FLAG_r (FORCED_FLAG<<2)
-#define FLAG_m (FORCED_FLAG<<3)
-#define FLAG_f (FORCED_FLAG<<4)
-#define FLAG_d (FORCED_FLAG<<5)
-#define FLAG_c (FORCED_FLAG<<6)
-#define FLAG_a (FORCED_FLAG<<7)
+#define FLAG_h (1LL<<0)
+#define FLAG_t (1LL<<1)
+#define FLAG_r (1LL<<2)
+#define FLAG_m (1LL<<3)
+#define FLAG_f (1LL<<4)
+#define FLAG_d (1LL<<5)
+#define FLAG_c (1LL<<6)
+#define FLAG_a (1LL<<7)
 #endif
 
 #ifdef FOR_toybox
