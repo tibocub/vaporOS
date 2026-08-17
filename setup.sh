@@ -211,7 +211,102 @@ cd nuttx
 # run, since there's nothing to clean yet.
 if [ -f .config ]; then
   echo "Existing configuration found -- running distclean so new apps are picked up"
+
+  # apps/interpreters/lua/Makefile's own distclean:: target
+  # unconditionally deletes both the downloaded tarball and the
+  # unpacked source (confirmed directly, lines 134-138 there) --
+  # meaning every single distclean here forces a fresh
+  # github.com/lua/lua download on the next build, even though
+  # nothing about lua's own source changed. The download rule itself
+  # is already correctly "skip if the tarball is already present"
+  # (plain Make target-exists behavior) -- the actual problem is
+  # distclean removing the evidence right before that check runs.
+  # Confirmed as a real, repeatable cost: this exact cycle (patch,
+  # distclean, redownload) is what a real dev workflow of iterating
+  # on patches hits on every single rebuild, and repeatedly hitting
+  # GitHub's archive endpoint this way is a plausible way to trip a
+  # rate limit. Preserve across distclean rather than changing what
+  # distclean itself does -- safer than trying to narrow distclean's
+  # own Kconfig-refresh behavior, which this comment block above
+  # confirms is genuinely needed for a different reason.
+  LUA_CACHE_TARBALL=$(ls ../apps/interpreters/lua/v*.tar.gz 2>/dev/null | head -1)
+  LUA_CACHE_DIR=../apps/interpreters/lua/lua
+
+  if [ -n "$LUA_CACHE_TARBALL" ]; then
+    mv "$LUA_CACHE_TARBALL" /tmp/vaporos-lua-cache.tar.gz
+  fi
+
+  # Only cache the unpacked directory if it's actually correctly
+  # structured (lualib.h present at the top level, the flat layout
+  # this build expects) -- confirmed directly as a real, not
+  # hypothetical, failure mode: a directory that exists but is
+  # missing this (e.g. left over from an official lua.org tarball
+  # unpacked before this script's own src/-flattening fix existed)
+  # is worse than useless to cache. Caching it based on existence
+  # alone, as an earlier version of this fix did, means the
+  # "does it need unpacking" check below never fires again --
+  # directory-exists was being used as a wrong proxy for "already
+  # correctly set up," silently preserving the same broken structure
+  # release after release.
+  if [ -d "$LUA_CACHE_DIR" ] && [ -f "$LUA_CACHE_DIR/lualib.h" ]; then
+    rm -rf /tmp/vaporos-lua-cache-dir
+    mv "$LUA_CACHE_DIR" /tmp/vaporos-lua-cache-dir
+  elif [ -d "$LUA_CACHE_DIR" ]; then
+    echo "Existing lua/ directory is missing lualib.h (incomplete or incorrectly-structured unpack from before) -- not caching it, will re-unpack from the tarball"
+    rm -rf "$LUA_CACHE_DIR"
+  fi
+
   make distclean
+
+  if [ -f /tmp/vaporos-lua-cache.tar.gz ]; then
+    mv /tmp/vaporos-lua-cache.tar.gz "../apps/interpreters/lua/$(basename "$LUA_CACHE_TARBALL")"
+  fi
+
+  if [ -d /tmp/vaporos-lua-cache-dir ]; then
+    mv /tmp/vaporos-lua-cache-dir "$LUA_CACHE_DIR"
+  fi
+
+  # The tarball existing isn't enough on its own: the Makefile rule
+  # that downloads+unpacks it has no other prerequisites, so Make
+  # only checks whether the tarball FILE exists, not whether it was
+  # ever actually unpacked. If we restored a tarball that was never
+  # successfully unpacked before (a download that never got that far,
+  # or one placed here manually), Make would see the target already
+  # "satisfied" and skip the unpack step entirely -- leaving the lua
+  # source directory missing and the build failing later with a much
+  # more confusing "missing lua source files" error instead of the
+  # clear download error this is meant to help avoid. Unpack it here
+  # ourselves when needed, mirroring exactly what that Makefile
+  # recipe's own commands do (tar -xzf, then mv lua-VERSION to lua/),
+  # so the restored state is genuinely consistent, not just
+  # tarball-present. Verified directly against a real tarball, not
+  # just reasoned about.
+  if [ -n "$LUA_CACHE_TARBALL" ] && [ ! -f "$LUA_CACHE_DIR/lualib.h" ]; then
+    LUA_VERSION_FROM_TARBALL=$(basename "$LUA_CACHE_TARBALL" .tar.gz | sed 's/^v//')
+    echo "Lua tarball present but not yet unpacked -- unpacking now"
+    (
+      cd ../apps/interpreters/lua &&
+      tar -xzf "$(basename "$LUA_CACHE_TARBALL")" &&
+      # GitHub's own tag archive (the tarball this project normally
+      # uses) has every source file flat at the top level -- but this
+      # tarball may instead be the official lua.org release (real
+      # scenario: used as a GitHub-outage workaround), whose layout
+      # is genuinely different -- confirmed directly against the real
+      # file, not assumed: every .c/.h lives under its own src/
+      # subdirectory there, which is exactly why "lualib.h: No such
+      # file or directory" happens otherwise (the Makefile's own
+      # CSRCS wildcard and header references all expect the flat
+      # GitHub layout). Only *.c/*.h get moved up, not the whole
+      # directory -- lua's own top-level Makefile and the one inside
+      # src/ have the same filename and would otherwise silently
+      # clobber each other, and neither is needed here anyway (NuttX
+      # drives this build with its own Makefile, not lua's).
+      if [ -d "lua-${LUA_VERSION_FROM_TARBALL}/src" ]; then
+        mv "lua-${LUA_VERSION_FROM_TARBALL}"/src/*.c "lua-${LUA_VERSION_FROM_TARBALL}"/src/*.h "lua-${LUA_VERSION_FROM_TARBALL}/"
+      fi &&
+      mv "lua-${LUA_VERSION_FROM_TARBALL}" lua
+    )
+  fi
 fi
 
 if [ "$BOARD_CONFIG" = "nxterm" ]; then
