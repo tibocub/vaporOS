@@ -105,24 +105,86 @@ side by side, they'd share a history array. Probably irrelevant if
 vaporshell fully replaces NSH's role rather than coexisting with it,
 but worth knowing before assuming isolated history "just works."
 
+## Architecture decision: parser and execution engine
+
+**Decided:** a bash/fish-inspired shell aiming for real POSIX/bash
+syntax and behavior where practical, not a custom Lua-syntax shell.
+The Lua-as-shell-language idea (Xonsh/Nushell/PowerShell-style --
+Lua's own syntax at the prompt, `vapor.*` for process control) was
+considered and set aside: a non-POSIX syntax would cost about as much
+custom parsing/lexing work as a real grammar, without the payoff of
+actually being POSIX/bash-compatible. Execution stays in C via
+`posix_spawnp`/pipes/the multicall table -- no second language
+runtime in the execution path.
+
+A real third-party option exists for the parser, once one is needed
+beyond the whitespace/quote tokenizing Milestone 1 uses:
+[`mrsh`](https://mrsh.sh) (emersion, MIT, C99) is a strict POSIX shell
+whose parser and AST are explicitly exposed as `libmrsh`, a standalone
+public interface -- its own stated purpose is being "a library to
+build more elaborate shells," not just a monolithic shell binary.
+`mrsh -n script.sh` dumps the parsed AST without executing it,
+confirming the parser and interpreter are genuinely separable -- we'd
+want the former (real POSIX grammar: pipes, redirection, quoting,
+control flow) and write our own executor tied to `posix_spawn`/the
+multicall table/`vapor`, not adopt mrsh's own execution engine. Real
+caveats: long quiet stretches in its history (most activity
+2018-2022), links `librt`, Meson-first build needing adaptation into
+this repo's Makefile/Kconfig shape -- same class of porting spike as
+toybox, not assumed to just work until actually tried.
+
+**`system()`/`os.execute()`, confirmed rather than assumed:** checked
+directly in `apps/system/system/system.c`. The default path is
+genuinely hardcoded -- `task_spawn("system", nsh_system, ...)` calls
+NSH's own command function directly, no name resolution involved at
+all. But NuttX ships a real, already-built escape hatch:
+`CONFIG_SYSTEM_SYSTEM_SHPATH`, which switches `system()` to a real
+`posix_spawn()` against whatever program name that's set to, calling
+it as `{shpath, "-c", cmd, NULL}` -- the exact convention
+`vaporshell -c` now implements. The name resolves through NuttX's
+binfmt loader chain (`binfmt/builtin.c` matches against the compiled-
+in builtin-apps table -- confirmed by reading it directly), the same
+mechanism NSH itself uses to resolve command names, so no new
+plumbing is needed there. Redirecting `system()`/`os.execute()` here
+is just `kconfig-tweak --set-str CONFIG_SYSTEM_SYSTEM_SHPATH
+vaporshell` once vaporshell's bareword-command support is solid
+enough that things calling `system("some nsh command")` expecting
+NSH's own syntax don't quietly break.
+
 ## Feature list
 
 ### Core execution
 
-- [ ] PATH resolution (`posix_spawnp` + `CONFIG_LIBC_ENVPATH`)
-- [ ] Program execution (`posix_spawn`, not `fork`+`exec`)
+- [x] PATH resolution (`posix_spawnp` + `CONFIG_LIBC_ENVPATH`)
+- [x] Program execution (`posix_spawn`, not `fork`+`exec`)
 - [ ] Multicall dispatch table: `{name -> entry point, synthesized argv[0]}`,
       resolved before falling back to PATH search. This is the actual
       mechanism that makes toybox usable as native-feeling commands
       (`ls`, `cp`, ...) instead of typing `toybox ls` -- see the
       toybox/vaporshell discussion for why this needs to live in the
       shell rather than as N generated stub binaries.
-- [ ] Builtins (`cd`, `exit`, `export`, ...) -- these have to live in
-      the shell's own process regardless of how good NuttX's spawn
-      story is, since they mutate the shell's own state (`cd` changes
-      *this* process's cwd, not a child's).
-- [ ] `$?` (last exit status) -- shell-internal bookkeeping, no OS
+- [x] Builtins -- `cd` implemented (mutates the shell's own state, so
+      it can never be a spawned program regardless of how good
+      NuttX's spawn story is). `export`, others: not yet.
+- [x] `$?` (last exit status) -- shell-internal bookkeeping, no OS
       equivalent to lean on.
+- [x] `-c <command>` non-interactive mode -- also what
+      `CONFIG_SYSTEM_SYSTEM_SHPATH` needs to redirect `system()`/
+      `os.execute()` here instead of NSH (see "Architecture decision"
+      above); not built for that alone, any real shell needs this.
+
+**Confirmed while implementing, worth being explicit about:** checked
+the actual generated `apps/builtin/builtin_list.h` from a real build
+-- NSH's own commands (`ls`, `cat`, `pwd`, `cd`, ...) are internal to
+`nshlib`'s own command table, not separate entries in the builtin-apps
+table `posix_spawn` resolves against. Right now, only separately-
+registered `apps/external` programs (`vhello`, `portable_wc`,
+`portable_cat`, `vlua`, `vi`, `vaporshell` itself) are actually
+spawnable from vaporshell. Typing `ls` fails with "No such file or
+directory" until toybox (or something like it) exists as real,
+separately-spawnable programs -- not a bug, the actual current state,
+and a concrete reason the toybox port matters architecturally, not
+just for command coverage.
 
 ### Environment / variables
 
