@@ -5,3 +5,4 @@ CONFIGURED_APPS += $(APPDIR)/external/portable_cat
 CONFIGURED_APPS += $(APPDIR)/external/vterm
 CONFIGURED_APPS += $(APPDIR)/external/vterm_fb
 CONFIGURED_APPS += $(APPDIR)/external/vaporshell
+CONFIGURED_APPS += $(APPDIR)/external/toybox

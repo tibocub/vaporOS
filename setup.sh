@@ -351,6 +351,38 @@ kconfig-tweak --enable CONFIG_VAPOROS_VAPORSHELL
 # useful. Confirmed directly in libs/libc/string/Kconfig: gates the
 # entire descriptive-string table, not a minor formatting toggle.
 kconfig-tweak --enable CONFIG_LIBC_STRERROR
+# toybox/toys.h includes <math.h> unconditionally, but only fabs() and
+# sin() from it are ever referenced anywhere in this project's 20-file
+# toybox scope (confirmed by a full grep), both from a single call
+# site in lib/hash.c gated behind `if (CFG_TOYBOX_FLOAT)` -- and
+# CFG_TOYBOX_FLOAT is 0 in this project's generated/config.h, so
+# that's dead code for true/false/echo/pwd. NOT pulling in NuttX's
+# real newlib-backed libm here on purpose: CONFIG_LIBM_NEWLIB was
+# tried first and reverted -- it requires fighting a Kconfig "choice"
+# group that kconfig-tweak didn't reliably resolve, and even once
+# forced, newlib's own bundled math sources (lib/hash.c's need is
+# nowhere near this) failed to compile against this host's gcc
+# (confirmed directly: libm/common/nanl.c uses __GNUC_PREREQ, a
+# glibc-only macro not available under -nostdinc). toybox/nuttx-shims/
+# math.h supplies a fabs() prototype (GCC recognizes it as a compiler
+# builtin on its own, so a bare prototype is enough -- no hand-rolled
+# body needed or wanted) and a declaration-only sin() instead -- see that file's own comment
+# for why a real sin() isn't hand-rolled, and why the declaration-only
+# approach is expected to be sufficient (lib/hash.c's hash_by_name(),
+# the only caller, is never invoked by this applet set, and NuttX's
+# own Make.defs confirms -Wl,--gc-sections is active for this host).
+# toybox/lib/xwrap.c's xtzset() calls the real tzset() -- declared in
+# time.h but only compiled in under this config (confirmed directly,
+# libs/libc/time/Kconfig). Only depends on !DISABLE_ENVIRON, unlike
+# CONFIG_LIBC_NETDB below -- light enough to enable unconditionally
+# rather than guarding around it in code. Without it: implicit
+# declaration warning at compile time, unresolved symbol at link time.
+kconfig-tweak --enable CONFIG_LIBC_LOCALTIME
+# See toybox/Kconfig -- deliberately enabled unconditionally here, same
+# reasoning as CONFIG_VAPOROS_VAPORSHELL just above: this is the
+# true/false/echo/pwd multicall vaporshell spawns, not something that
+# should need vterm_fb's graphics setup to test.
+kconfig-tweak --enable CONFIG_VAPOROS_TOYBOX
 if [ "$BOARD_CONFIG" = "vterm_fb" ]; then
   # vterm_fb_main.c now runs NSH on a real pty (openpty()) instead of
   # its own bespoke character device -- see the comment block at the

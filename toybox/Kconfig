@@ -1,0 +1,42 @@
+config VAPOROS_TOYBOX
+	tristate "toybox -- vendored true/false/echo/pwd multicall (docs/vaporshell.md)"
+	default n
+	---help---
+		Vendored toybox (codeberg.org/landley/toybox), patched for
+		NuttX portability, built as a single multicall "tbx"
+		program. vaporshell spawns it with argv[0] set to whichever
+		applet name was typed (posix_spawnp("tbx", ..., argv)),
+		the same way a real Unix symlink-based multicall install
+		would work, just resolved by vaporshell's own table instead
+		of the filesystem.
+
+		Registered as "tbx", not "toybox": confirmed by a real
+		build, NuttX's own Application.mk renames this program's
+		real int main(argc, argv) to <PROGNAME>_main via a -Dmain=
+		macro -- and toybox's own main.c already has an unrelated
+		internal function literally named toybox_main() (its own
+		"run as `toybox <applet>`" dispatcher, nothing to do with
+		NuttX). PROGNAME="toybox" collides with it directly. Run
+		applets as `tbx true`, `tbx echo hi`, etc.
+
+		Deliberately minimal scope for now: true, false, echo, pwd
+		only -- proves the pipeline before committing to toybox's
+		full ~218-command set. See the Makefile in this directory
+		for what expanding that scope actually requires (mainly:
+		regenerating generated/*.h on a host toybox checkout).
+
+if VAPOROS_TOYBOX
+
+config VAPOROS_TOYBOX_PROGNAME
+	string "Program name"
+	default "tbx"
+
+config VAPOROS_TOYBOX_PRIORITY
+	int "priority"
+	default 100
+
+config VAPOROS_TOYBOX_STACKSIZE
+	int "stack size"
+	default DEFAULT_TASK_STACKSIZE
+
+endif
