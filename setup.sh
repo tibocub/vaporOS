@@ -345,6 +345,12 @@ kconfig-tweak --enable CONFIG_VAPOROS_VTERMTEST
 # on the shell itself shouldn't require vterm_fb's graphics/pty setup
 # at all until it's actually ready to be wired in as a boot entrypoint.
 kconfig-tweak --enable CONFIG_VAPOROS_VAPORSHELL
+# strerror() is a bare stub without this -- default off, and without
+# it every error message vaporshell prints (command not found, cd
+# failures, ...) reads as "Unknown error N" instead of anything
+# useful. Confirmed directly in libs/libc/string/Kconfig: gates the
+# entire descriptive-string table, not a minor formatting toggle.
+kconfig-tweak --enable CONFIG_LIBC_STRERROR
 if [ "$BOARD_CONFIG" = "vterm_fb" ]; then
   # vterm_fb_main.c now runs NSH on a real pty (openpty()) instead of
   # its own bespoke character device -- see the comment block at the
