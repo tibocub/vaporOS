@@ -230,6 +230,54 @@ just for command coverage.
       this feature actually means per-target before it's designed, not
       after.
 
+## Toybox port: spike results
+
+A real spike, not just reading source -- vendored toybox upstream,
+generated its own build config for a minimal 4-applet set (`true`,
+`false`, `echo`, `pwd`), and compiled the actual generated sources
+against NuttX's real headers.
+
+**Multicall dispatch confirmed, no toybox patches needed for this
+part.** Read `main.c` directly: it inspects `basename(argv[0])`,
+looks it up in a build-generated `toy_list[]` table (name -> applet
+`_main` function), and dispatches -- the standard multicall pattern.
+Checked NuttX's own spawn chain (`binfmt_exec.c` -> `binfmt/builtin.c`)
+confirms `argv[]` passes through from caller to the started task's
+`main()` untouched -- nothing overwrites `argv[0]` with the resolved
+program name. So vaporshell's multicall table works exactly as
+designed: `posix_spawnp(&pid, "toybox", ..., argv, environ)` with
+`argv[0]` set to whatever applet name matched (`"ls"`, `"cp"`, ...)
+correctly reaches that applet's `_main()`, the same way a real Unix
+symlink-based multicall install would, just resolved by vaporshell's
+own table instead of the filesystem.
+
+**Two real bugs found and fixed in toybox's own `lib/portability.h`**
+(patch kept separately, against toybox upstream, not this repo --
+worth submitting there too once proven out further):
+- Its generic (non-Apple/BSD) branch assumes `struct statfs` is
+  already visible via some transitive include, true on glibc, not
+  true on NuttX's more strictly-scoped headers -- needed an explicit
+  `#include <sys/statfs.h>`.
+- Once visible, NuttX's `struct statfs` (checked directly,
+  `sys/statfs.h`) has no `f_frsize` field at all, unlike Linux --
+  needed a NuttX-specific case using `f_bsize` for both, same as the
+  pre-`f_frsize` Unix convention.
+
+**Current real blocker, confirmed not assumed:** `paths.h` (BSD-
+derived, provides `_PATH_DEFPATH` and friends) doesn't exist
+anywhere in NuttX's tree at all. Toybox's `toys.h` includes it
+unconditionally. Needs a small compatibility header providing
+whatever subset of `_PATH_*` macros toybox's code actually
+references -- scoped, not a deep architectural problem, just the
+next concrete thing to solve.
+
+Also resolved along the way, worth remembering for next time rather
+than re-discovering: NuttX's own math library headers
+(`libs/libm/newlib/include/math.h` and its `machine/ieeefp.h`) aren't
+copied into the top-level `include/` until a build actually reaches
+that step -- an incomplete build's `include/` directory will be
+missing `math.h` even though NuttX genuinely has it.
+
 ## Open questions
 
 - Does `READLINE_EDIT=y` + a narrow end-of-line-echo patch actually
