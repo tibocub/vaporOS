@@ -199,29 +199,21 @@ The experience should feel much closer to using an old workstation than a modern
 ## GETTING STARTED
 
 No real hardware needed to start. NuttX has its own simulator (`sim`
-target) that runs as a native host binary -- this is what `setup.sh` builds
-by default.
+target) that runs as a native host binary.
 
 ```
-./setup.sh
-```
-
-This clones `nuttx` and `apps` (pinned to known-good commits, see the top of
-the script) as siblings of this repo, symlinks this repo in as `apps/external`
-(NuttX's supported mechanism for out-of-tree custom apps -- see
-`apps/README.md`, "Adding Applications Outside the Apps Directory"), enables
-this repo's apps, and builds the `sim:nsh` config.
-
-```
+./setup.sh          # or setup.ps1 on Windows -- clones nuttx+apps, wires
+                     # this repo in as apps/external
+make -f dev.mk build
 ../nuttx/nuttx
 ```
 
 boots into a real NSH shell, entirely on your machine, no board required.
+`dev.mk` picks bash+`.sh` or PowerShell+`.ps1` automatically based on OS.
 
-`setup.sh` takes an optional board-config argument for other targets --
-`./setup.sh vterm_fb` builds vaporterm, the custom graphical terminal
-described in STATUS above (needs an X server; see the top of `setup.sh`
-for the full list of targets and what each one actually does).
+`make -f dev.mk build BOARD=vterm_fb` builds vaporterm, the custom
+graphical terminal described in STATUS above (needs an X server).
+`make -f dev.mk help` lists every command.
 
 ---
 
