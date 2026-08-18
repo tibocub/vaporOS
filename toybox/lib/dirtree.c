@@ -219,6 +219,7 @@ int dirtree_recurse(struct dirtree *node,
   struct dirtree *new = 0, *next, **ddt = &(node->child);
   struct dirent *entry;
   DIR *dir = 0;
+  int gotdot = 0, gotdotdot = 0, didreaddir = 0;
 
   // fdopendir() doesn't support AT_FDCWD, closedir() closes fd from opendir()
   if (AT_FDCWD == (node->dirfd = dirfd)) dir = opendir(".");
@@ -242,20 +243,80 @@ int dirtree_recurse(struct dirtree *node,
 
   // according to the fddir() man page, the filehandle in the DIR * can still
   // be externally used by things that don't lseek() it.
-  } else while ((entry = readdir(dir))) {
-    if ((flags&DIRTREE_PROC) && !isdigit(*entry->d_name)) continue;
-    if ((flags&DIRTREE_BREADTH) && isdotdot(entry->d_name)) continue;
-    if (!(new = dirtree_add_node(node, entry->d_name, flags))) continue;
-    if ((flags&DIRTREE_SYMFOLLOW) && entry->d_type==DT_LNK
-      && !S_ISLNK(new->st.st_mode)) new->again |= DIRTREE_SYMFOLLOW;
-    if (!new->st.st_blksize && !new->st.st_mode)
-      new->st.st_mode = entry->d_type<<12;
-    new = dirtree_handle_callback(new, callback);
+  } else {
+    didreaddir = 1;
+    while ((entry = readdir(dir))) {
+      if (!strcmp(entry->d_name, ".")) gotdot = 1;
+      else if (!strcmp(entry->d_name, "..")) gotdotdot = 1;
+      if ((flags&DIRTREE_PROC) && !isdigit(*entry->d_name)) continue;
+      if ((flags&DIRTREE_BREADTH) && isdotdot(entry->d_name)) continue;
+      if (!(new = dirtree_add_node(node, entry->d_name, flags))) continue;
+      if ((flags&DIRTREE_SYMFOLLOW) && entry->d_type==DT_LNK
+        && !S_ISLNK(new->st.st_mode)) new->again |= DIRTREE_SYMFOLLOW;
+      if (!new->st.st_blksize && !new->st.st_mode)
+        new->st.st_mode = entry->d_type<<12;
+      new = dirtree_handle_callback(new, callback);
+      if (new == DIRTREE_ABORTVAL) goto done;
+      if (new) {
+        *ddt = new;
+        ddt = &((*ddt)->next);
+        if (flags&DIRTREE_BREADTH) node->extra++;
+      }
+    }
+  }
+
+  // NuttX's own pseudo-filesystem directory reader
+  // (fs/vfs/fs_dir.c's read_pseudodir()) never synthesizes "." or
+  // ".." entries at all -- confirmed directly, no code path for it
+  // exists there. Real mounted filesystems (e.g. hostfs-backed
+  // directories) DO return them correctly via readdir(), which is
+  // why gotdot/gotdotdot end up true and this is a no-op for those --
+  // this only fires for a genuine pseudo-fs gap (e.g. "/" itself, or
+  // any other pure pseudo-directory that isn't a real mountpoint).
+  // Deliberately a toybox-side workaround, not a NuttX patch: this
+  // project's own policy is to keep NuttX itself unmodified wherever
+  // possible, for compatibility with the official upstream across
+  // all its supported targets. Toybox already needs its own NuttX-
+  // specific fork/patches to work at all, so carrying this here is
+  // consistent with where that maintenance burden already lives.
+  //
+  // Deliberately NOT calling dirtree_add_node()/fstatat() for these
+  // synthesized entries -- that would mean a NEW stat call using
+  // node->dirfd + "." or "..", which could plausibly hit a similar
+  // NuttX path-resolution quirk to the ones already found and fixed
+  // elsewhere in this project. Instead this reuses stat info already
+  // known to be correct: "." is always the same directory, so
+  // node->st already IS its own stat data. ".." uses the real
+  // parent's already-known stat if there is one, or self-references
+  // (copies node->st again) for a top-level node with no parent --
+  // matching real Unix's own convention that "/"'s parent is itself.
+  if (didreaddir && callback && !gotdot) {
+    struct dirtree *dt = xmalloc(sizeof(struct dirtree)+2);
+
+    memset(dt, 0, sizeof(struct dirtree));
+    dt->parent = node;
+    memcpy(&dt->st, &node->st, sizeof(struct stat));
+    strcpy(dt->name, ".");
+    new = dirtree_handle_callback(dt, callback);
     if (new == DIRTREE_ABORTVAL) goto done;
     if (new) {
       *ddt = new;
       ddt = &((*ddt)->next);
-      if (flags&DIRTREE_BREADTH) node->extra++;
+    }
+  }
+  if (didreaddir && callback && !gotdotdot) {
+    struct dirtree *dt = xmalloc(sizeof(struct dirtree)+3);
+
+    memset(dt, 0, sizeof(struct dirtree));
+    dt->parent = node;
+    memcpy(&dt->st, node->parent ? &node->parent->st : &node->st,
+      sizeof(struct stat));
+    strcpy(dt->name, "..");
+    new = dirtree_handle_callback(dt, callback);
+    if (new == DIRTREE_ABORTVAL) goto done;
+    if (new) {
+      *ddt = new;
+      ddt = &((*ddt)->next);
     }
   }
 
