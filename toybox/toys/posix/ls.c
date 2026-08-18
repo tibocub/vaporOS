@@ -386,9 +386,6 @@ static void listfiles(int dirfd, struct dirtree *indir)
       // "/" never touching the trailing-dot issue at all -- two
       // separate bugs, same call site, same missing flag+resolution.
       sdfd = open(sdname, O_DIRECTORY);
-      fprintf(stderr, "LS_DEBUG: open(\"%s\", O_DIRECTORY) for single-dir shortcut -> fd=%d%s%s\n",
-        dt->name, sdfd, sdfd<0 ? ", errno=" : "",
-        sdfd<0 ? strerror(errno) : "");
       if (sdname != dt->name) free(sdname);
       listfiles(sdfd, TT.singledir = dt);
 
@@ -479,8 +476,27 @@ static void listfiles(int dirfd, struct dirtree *indir)
     mode_t mode = st->st_mode;
     char et = endtype(st), *ss;
 
+#ifdef __NuttX__
+    // Toybox's own heuristic just below (zero st_blksize/st_dev/
+    // st_ino means stat failed) is a false positive on NuttX --
+    // confirmed directly, fs/procfs/fs_procfs.c's own procfs_stat()
+    // does memset(buf, 0, sizeof(*buf)) and only ever sets st_mode,
+    // by design (a real, intentional characteristic of NuttX's
+    // procfs for a synthetic/virtual filesystem, not a bug), meaning
+    // every genuinely SUCCESSFUL procfs stat() -- e.g. listing /proc
+    // or /tmp as entries of "/" -- has these three fields at zero,
+    // indistinguishable from a real failure by the heuristic below.
+    // Use the real, explicit "did this entry's stat() actually fail"
+    // flag instead (set by lib/dirtree.c's own dirtree_add_node(),
+    // only on a genuine stat/fstatat error) -- scoped to NuttX
+    // specifically since the original heuristic is presumably
+    // correct and relied-upon on real Unix filesystems, which this
+    // project has no reason to alter.
+    zap = !!(dt->again & DIRTREE_STATLESS);
+#else
     // If we couldn't stat, output ? for most fields
     zap = !st->st_blksize && !st->st_dev && !st->st_ino;
+#endif
 
     // Skip directories at the top of the tree when -d isn't set
     if (S_ISDIR(mode) && !indir->parent && !FLAG(d)) continue;

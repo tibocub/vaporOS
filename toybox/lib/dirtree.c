@@ -72,24 +72,12 @@ struct dirtree *dirtree_add_node(struct dirtree *parent, char *name, int flags)
     if (!parent && (name[0]=='/' || (name[0]=='.' && !name[1]))) {
       fdname = (name[0]=='.') ? xgetcwd() : name;
       if (sym ? lstat(fdname, &st) : stat(fdname, &st)) {
-        // TEMPORARY DIAGNOSTIC -- kept active so if this still fails
-        // we get real data instead of another guess. Remove once
-        // confirmed working.
-        fprintf(stderr, "DIRTREE_DEBUG: %s(\"%s\"%s) failed, errno=%d (%s)\n",
-          sym ? "lstat" : "stat", fdname,
-          fdname!=name ? " [xgetcwd-resolved]" : "", errno, strerror(errno));
         if (flags&DIRTREE_STATLESS) statless++;
         else goto error;
       }
     } else
     // stat dangling symlinks
     if (fstatat(fd, fdname, &st, sym)) {
-      // TEMPORARY DIAGNOSTIC -- kept active so if this still fails
-      // we get real data (the actual resolved path and errno)
-      // instead of a fourth guess. Remove once confirmed working.
-      fprintf(stderr, "DIRTREE_DEBUG: fstatat(fd=%d%s, \"%s\"%s, sym=%d) failed, errno=%d (%s)\n",
-        fd, fd==AT_FDCWD ? "=AT_FDCWD" : "", fdname,
-        fdname!=name ? " [xgetcwd-resolved]" : "", sym, errno, strerror(errno));
       // If we got ENOENT without NOFOLLOW, try again with NOFOLLOW.
       if (errno!=ENOENT || sym || fstatat(fd, fdname, &st, AT_SYMLINK_NOFOLLOW)) {
         if (flags&DIRTREE_STATLESS) statless++;
@@ -237,11 +225,6 @@ int dirtree_recurse(struct dirtree *node,
   else if (node->dirfd != -1) dir = fdopendir(xdup(node->dirfd));
 
   if (!dir) {
-    // TEMPORARY DIAGNOSTIC -- kept active as a safety net in case
-    // this call site still isn't the whole picture. Remove once
-    // confirmed working end to end.
-    fprintf(stderr, "DIRTREE_DEBUG: dirtree_recurse fdopendir/opendir failed, dirfd=%d, node->dirfd=%d, errno=%d (%s)\n",
-      dirfd, node->dirfd, errno, strerror(errno));
     if (!(flags & DIRTREE_SHUTUP)) {
       char *path = dirtree_path(node, 0);
       perror_msg_raw(path);
