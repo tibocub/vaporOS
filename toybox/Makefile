@@ -85,6 +85,11 @@ CSRCS += toys/posix/ls.c
 # CSRCS line.
 CSRCS += toys/posix/cp.c
 
+# Diagnostic-motivated (real $PWD-vs-real-CWD desync investigation,
+# docs/vaporshell.md), but genuinely useful on its own -- tiny (41
+# lines), dependency-free, just dumps environ directly.
+CSRCS += toys/other/printenv.c
+
 # toybox's own main.c is compiled as a plain CSRCS file, not MAINSRC --
 # its own "int main(argc, argv)" is left completely unrenamed (a
 # normal, ordinary, un-exported function named "main"), never called

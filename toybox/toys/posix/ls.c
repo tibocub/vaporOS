@@ -364,7 +364,33 @@ static void listfiles(int dirfd, struct dirtree *indir)
     // In this case only show dirname/total header when given -R.
     dt = indir->child;
     if (dt && S_ISDIR(dt->st.st_mode) && !dt->next && !(FLAG(d)||FLAG(R))) {
-      listfiles(open(dt->name, 0), TT.singledir = dt);
+      int sdfd;
+      char *sdname = !strcmp(dt->name, ".") ? xgetcwd() : dt->name;
+
+      // Real root cause of both `ls` and `ls /` failing, found by
+      // tracing every open()/openat()/fstatat() call in this file,
+      // not just the ones in lib/dirtree.c (which were real bugs too,
+      // but not THIS one -- this call bypasses dirtree.c entirely).
+      // Two independent NuttX issues hit by the SAME open(dt->name,
+      // 0) call: (1) dt->name=="." hits the same trailing-"."
+      // resolver limitation as everywhere else (NuttX's
+      // fs_inodesearch.c never treats a trailing "." as a self-
+      // reference); (2) flags==0 (no O_DIRECTORY) means NuttX's own
+      // fs_open.c only takes its working dir_allocate() branch when
+      // O_DIRECTORY is explicitly set -- without it, opening a node
+      // that's neither a mountpoint nor a driver/pipe (like "/"
+      // itself, NuttX's own pseudo-root, not a real mounted
+      // filesystem) falls straight into an -ENXIO catch-all,
+      // confirmed directly in fs/vfs/fs_open.c. That's why `ls /`
+      // failed differently (ENXIO) than `ls`/`ls .` (ENOENT) despite
+      // "/" never touching the trailing-dot issue at all -- two
+      // separate bugs, same call site, same missing flag+resolution.
+      sdfd = open(sdname, O_DIRECTORY);
+      fprintf(stderr, "LS_DEBUG: open(\"%s\", O_DIRECTORY) for single-dir shortcut -> fd=%d%s%s\n",
+        dt->name, sdfd, sdfd<0 ? ", errno=" : "",
+        sdfd<0 ? strerror(errno) : "");
+      if (sdname != dt->name) free(sdname);
+      listfiles(sdfd, TT.singledir = dt);
 
       return;
     }
@@ -573,7 +599,12 @@ static void listfiles(int dirfd, struct dirtree *indir)
 
     // Recurse into dirs if at top of the tree or given -R
     if (!indir->parent || (FLAG(R) && dirtree_notdotdot(sort[ul])))
-      listfiles(openat(dirfd, sort[ul]->name, 0), sort[ul]);
+      // Same missing-O_DIRECTORY issue as the single-dir shortcut
+      // above -- without it, NuttX's fs_open.c falls into an ENXIO
+      // catch-all for any node that isn't a mountpoint or driver/
+      // pipe, even a real directory. Applies here too, for recursive
+      // descent into subdirectories.
+      listfiles(openat(dirfd, sort[ul]->name, O_DIRECTORY), sort[ul]);
     free((void *)sort[ul]->extra);
   }
   free(sort);

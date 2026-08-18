@@ -724,9 +724,9 @@
 #define CFG_PMAP 0
 #define USE_PMAP(...)
 #define SKIP_PMAP(...) __VA_ARGS__
-#define CFG_PRINTENV 0
-#define USE_PRINTENV(...)
-#define SKIP_PRINTENV(...) __VA_ARGS__
+#define CFG_PRINTENV 1
+#define USE_PRINTENV(...) __VA_ARGS__
+#define SKIP_PRINTENV(...)
 #define CFG_PWDX 0
 #define USE_PWDX(...)
 #define SKIP_PWDX(...) __VA_ARGS__

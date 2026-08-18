@@ -30,25 +30,78 @@ struct dirtree *dirtree_add_node(struct dirtree *parent, char *name, int flags)
   struct dirtree *dt = 0;
   struct stat st;
   int len = 0, linklen = 0, statless = 0;
+  char *fdname = name;
 
   if (name) {
     // open code fd = because haven't got node to call dirtree_parentfd() on yet
     int fd = parent ? parent->dirfd : AT_FDCWD,
       sym = AT_SYMLINK_NOFOLLOW*!(flags&DIRTREE_SYMFOLLOW);
 
+    // Confirmed with real diagnostic output, not just source-reading:
+    // fstatat(AT_FDCWD, ".", ...) really does fail with ENOENT on
+    // NuttX -- and NSH's own cmd_ls (apps/nshlib/nsh_envcmds.c) hits
+    // the exact same class of problem and works around it the exact
+    // same way: its own nsh_getfullpath() has a comment literally
+    // saying "Fake the '.' directory", resolving "." to a real path
+    // string and never passing "." through any stat-family call.
+    // NSH also never calls anything through AT_FDCWD at all -- it
+    // always builds one full absolute path itself first, then calls
+    // plain stat() directly. Root cause for the "." case specifically,
+    // confirmed directly against NuttX's own fs/inode/fs_inodesearch.c:
+    // inode_nextname() only recognizes a "." path segment as a self-
+    // reference when it's followed by '/' (mid-path, e.g. "/a/./b") --
+    // never when "." is the trailing/final segment, which is exactly
+    // what fstatat(AT_FDCWD, ".", ...) constructs internally
+    // ("$PWD/."). Absolute paths (e.g. plain "/") also fail through
+    // fstatat(AT_FDCWD, ...) -- confirmed by observed ENXIO, not
+    // explained by the same $PWD-prepending mechanism (an absolute
+    // path bypasses that per lib_getfullpath.c's own branch order),
+    // but NSH's approach of never using fstatat/AT_FDCWD at all for
+    // its own top-level path sidesteps it regardless of root cause.
+    // Fix: for any top-level (parent-less) name that's either bare
+    // "." or already absolute, resolve fully and call stat()/lstat()
+    // directly, bypassing fstatat(AT_FDCWD, ...) entirely -- matching
+    // NSH's own proven-working pattern. Ordinary relative names
+    // (neither case) are untouched, since those already work
+    // correctly through the normal fstatat(AT_FDCWD, name, ...) path
+    // below (confirmed: cp/mv, which also go through this function,
+    // already work correctly for plain relative filenames). Does NOT
+    // cover every way a trailing "." can appear (e.g. `ls somedir/.`
+    // explicitly) -- that still hits the same underlying NuttX
+    // "." limitation and isn't fixed by this.
+    if (!parent && (name[0]=='/' || (name[0]=='.' && !name[1]))) {
+      fdname = (name[0]=='.') ? xgetcwd() : name;
+      if (sym ? lstat(fdname, &st) : stat(fdname, &st)) {
+        // TEMPORARY DIAGNOSTIC -- kept active so if this still fails
+        // we get real data instead of another guess. Remove once
+        // confirmed working.
+        fprintf(stderr, "DIRTREE_DEBUG: %s(\"%s\"%s) failed, errno=%d (%s)\n",
+          sym ? "lstat" : "stat", fdname,
+          fdname!=name ? " [xgetcwd-resolved]" : "", errno, strerror(errno));
+        if (flags&DIRTREE_STATLESS) statless++;
+        else goto error;
+      }
+    } else
     // stat dangling symlinks
-    if (fstatat(fd, name, &st, sym)) {
+    if (fstatat(fd, fdname, &st, sym)) {
+      // TEMPORARY DIAGNOSTIC -- kept active so if this still fails
+      // we get real data (the actual resolved path and errno)
+      // instead of a fourth guess. Remove once confirmed working.
+      fprintf(stderr, "DIRTREE_DEBUG: fstatat(fd=%d%s, \"%s\"%s, sym=%d) failed, errno=%d (%s)\n",
+        fd, fd==AT_FDCWD ? "=AT_FDCWD" : "", fdname,
+        fdname!=name ? " [xgetcwd-resolved]" : "", sym, errno, strerror(errno));
       // If we got ENOENT without NOFOLLOW, try again with NOFOLLOW.
-      if (errno!=ENOENT || sym || fstatat(fd, name, &st, AT_SYMLINK_NOFOLLOW)) {
+      if (errno!=ENOENT || sym || fstatat(fd, fdname, &st, AT_SYMLINK_NOFOLLOW)) {
         if (flags&DIRTREE_STATLESS) statless++;
         else goto error;
       }
     }
     if (!statless && S_ISLNK(st.st_mode)) {
-      if (0>(linklen = readlinkat(fd, name, libbuf, 4095))) goto error;
+      if (0>(linklen = readlinkat(fd, fdname, libbuf, 4095))) goto error;
       libbuf[linklen++]=0;
     }
     len = strlen(name);
+    if (fdname != name) free(fdname);
   }
 
   // Allocate/populate return structure
@@ -126,7 +179,30 @@ static struct dirtree *dirtree_handle_callback(struct dirtree *new,
 
   if (S_ISDIR(new->st.st_mode) && (flags & df)) {
     // TODO: check openat returned fd for errors... and do what about it?
-    if (*new->name) fd = openat(dirtree_parentfd(new), new->name, O_CLOEXEC);
+    //
+    // Second, separate NuttX trailing-"." site -- confirmed the hard
+    // way, not caught by source-reading alone: fixing
+    // dirtree_add_node()'s own stat call (elsewhere in this file)
+    // makes the top-level "." node's initial stat succeed, but
+    // *this* openat() call, for the SAME top-level node, independently
+    // passes new->name ("." for the `ls`/bare-ls case) straight
+    // through too -- confirmed via NuttX's own lib_openat.c, it
+    // delegates to the identical lib_getfullpath() helper fstatat()
+    // uses, so it hits the identical trailing-"." limitation
+    // (fs/inode/fs_inodesearch.c's inode_nextname() never treats a
+    // trailing "." as a self-reference). Same fix, same reasoning:
+    // for a top-level (parent-less) node whose name is bare "." or
+    // already absolute, resolve fully and call plain open() directly
+    // instead of openat(AT_FDCWD, ...).
+    if (*new->name) {
+      if (!new->parent && (new->name[0]=='/' ||
+          (new->name[0]=='.' && !new->name[1]))) {
+        char *resolved = (new->name[0]=='.') ? xgetcwd() : new->name;
+
+        fd = open(resolved, O_CLOEXEC);
+        if (resolved!=new->name) free(resolved);
+      } else fd = openat(dirtree_parentfd(new), new->name, O_CLOEXEC);
+    }
     if (flags&DIRTREE_BREADTH) {
       new->again |= DIRTREE_BREADTH;
       if ((DIRTREE_ABORT & dirtree_recurse(new, 0, fd, flags)) ||
@@ -161,6 +237,11 @@ int dirtree_recurse(struct dirtree *node,
   else if (node->dirfd != -1) dir = fdopendir(xdup(node->dirfd));
 
   if (!dir) {
+    // TEMPORARY DIAGNOSTIC -- kept active as a safety net in case
+    // this call site still isn't the whole picture. Remove once
+    // confirmed working end to end.
+    fprintf(stderr, "DIRTREE_DEBUG: dirtree_recurse fdopendir/opendir failed, dirfd=%d, node->dirfd=%d, errno=%d (%s)\n",
+      dirfd, node->dirfd, errno, strerror(errno));
     if (!(flags & DIRTREE_SHUTUP)) {
       char *path = dirtree_path(node, 0);
       perror_msg_raw(path);

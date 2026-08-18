@@ -2574,7 +2574,7 @@
 #undef FLAG_p
 #endif
 
-// printenv   (null)0
+// printenv (null)0 (null)0
 #undef OPTSTR_printenv
 #define OPTSTR_printenv "(null)0"
 #ifdef CLEANUP_printenv
@@ -6388,8 +6388,8 @@
 #ifndef TT
 #define TT this.printenv
 #endif
-#define FLAG_0 (FORCED_FLAG<<0)
-#define FLAG_null (FORCED_FLAG<<1)
+#define FLAG_0 (1LL<<0)
+#define FLAG_null (1LL<<1)
 #endif
 
 #ifdef FOR_printf
