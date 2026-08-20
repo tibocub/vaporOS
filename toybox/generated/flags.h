@@ -4123,8 +4123,8 @@
 #ifndef TT
 #define TT this.basename
 #endif
-#define FLAG_s (FORCED_FLAG<<0)
-#define FLAG_a (FORCED_FLAG<<1)
+#define FLAG_s (1LL<<0)
+#define FLAG_a (1LL<<1)
 #endif
 
 #ifdef FOR_bc
@@ -7633,7 +7633,7 @@
 #ifndef TT
 #define TT this.which
 #endif
-#define FLAG_a (FORCED_FLAG<<0)
+#define FLAG_a (1LL<<0)
 #endif
 
 #ifdef FOR_who

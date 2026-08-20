@@ -35,9 +35,14 @@ struct mkdir_data {
 struct touch_data {
   char *t, *r, *d;
 };
+
+struct basename_data {
+  char *s;
+};
 extern union global_union {
 	struct cp_data cp;
 	struct ls_data ls;
 	struct mkdir_data mkdir;
 	struct touch_data touch;
+	struct basename_data basename;
 } this;

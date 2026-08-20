@@ -4,9 +4,9 @@
 #define CFG_IS_FDPIC 0
 #define USE_IS_FDPIC(...)
 #define SKIP_IS_FDPIC(...) __VA_ARGS__
-#define CFG_BASENAME 0
-#define USE_BASENAME(...)
-#define SKIP_BASENAME(...) __VA_ARGS__
+#define CFG_BASENAME 1
+#define USE_BASENAME(...) __VA_ARGS__
+#define SKIP_BASENAME(...)
 #define CFG_CAL 0
 #define USE_CAL(...)
 #define SKIP_CAL(...) __VA_ARGS__
@@ -58,9 +58,9 @@
 #define CFG_DF 0
 #define USE_DF(...)
 #define SKIP_DF(...) __VA_ARGS__
-#define CFG_DIRNAME 0
-#define USE_DIRNAME(...)
-#define SKIP_DIRNAME(...) __VA_ARGS__
+#define CFG_DIRNAME 1
+#define USE_DIRNAME(...) __VA_ARGS__
+#define SKIP_DIRNAME(...)
 #define CFG_DU 0
 #define USE_DU(...)
 #define SKIP_DU(...) __VA_ARGS__
@@ -190,9 +190,9 @@
 #define CFG_SED 0
 #define USE_SED(...)
 #define SKIP_SED(...) __VA_ARGS__
-#define CFG_SLEEP 0
-#define USE_SLEEP(...)
-#define SKIP_SLEEP(...) __VA_ARGS__
+#define CFG_SLEEP 1
+#define USE_SLEEP(...) __VA_ARGS__
+#define SKIP_SLEEP(...)
 #define CFG_SORT 0
 #define USE_SORT(...)
 #define SKIP_SORT(...) __VA_ARGS__
@@ -835,9 +835,9 @@
 #define CFG_WATCHDOG 0
 #define USE_WATCHDOG(...)
 #define SKIP_WATCHDOG(...) __VA_ARGS__
-#define CFG_WHICH 0
-#define USE_WHICH(...)
-#define SKIP_WHICH(...) __VA_ARGS__
+#define CFG_WHICH 1
+#define USE_WHICH(...) __VA_ARGS__
+#define SKIP_WHICH(...)
 #define CFG_XXD 0
 #define USE_XXD(...)
 #define SKIP_XXD(...) __VA_ARGS__

@@ -90,6 +90,22 @@ CSRCS += toys/posix/cp.c
 # lines), dependency-free, just dumps environ directly.
 CSRCS += toys/other/printenv.c
 
+# Low-risk batch, self-contained utilities -- deliberately picked to
+# avoid the dirtree.c/O_DIRECTORY portability machinery cp/mv/ls just
+# went through. basename/dirname are pure string ops (libc
+# basename()/dirname(), no filesystem I/O at all). sleep only needs
+# nanosleep() + xparsetimespec() (lib/xwrap.c), both already vendored
+# and already proven working throughout this project's own sim
+# timing code. which uses stat()/access() on named files (not "."),
+# a different, unaffected code path from the trailing-dot bug
+# dirtree.c hit -- confirmed by reading which.c directly, and its own
+# find_in_path()/llist_* helpers are already vendored in
+# lib/lib.c/lib/llist.c.
+CSRCS += toys/posix/basename.c
+CSRCS += toys/posix/dirname.c
+CSRCS += toys/posix/sleep.c
+CSRCS += toys/other/which.c
+
 # toybox's own main.c is compiled as a plain CSRCS file, not MAINSRC --
 # its own "int main(argc, argv)" is left completely unrenamed (a
 # normal, ordinary, un-exported function named "main"), never called
