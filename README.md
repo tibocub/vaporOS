@@ -233,15 +233,18 @@ some-parent-dir/
                        apps/external -> ../vaporOS-nuttx
   vaporOS-nuttx/        this repo
                        toybox -> ../vaporOS-coreutils
+                       vaporshell -> ../vaporshell
   vaporOS-coreutils/   the toybox/coreutils port, its own repo (see below)
+  vaporshell/          the shell itself, its own repo (see below)
 ```
 
-`apps/external` and `vaporOS-nuttx/toybox` are both symlinks that only
-resolve correctly because of this fixed, sibling relationship -- if
-you ever move one of these directories independently of the others,
-both will break. `setup.sh` sets this up for you automatically; this
-is only worth knowing explicitly if you're scripting around it, or
-setting the workspace up by hand instead.
+`apps/external`, `vaporOS-nuttx/toybox`, and `vaporOS-nuttx/vaporshell`
+are all symlinks that only resolve correctly because of this fixed,
+sibling relationship -- if you ever move one of these directories
+independently of the others, they'll break. `setup.sh` sets this up
+for you automatically; this is only worth knowing explicitly if
+you're scripting around it, or setting the workspace up by hand
+instead.
 
 ```
 vaporOS-nuttx/
@@ -280,10 +283,21 @@ vaporOS-nuttx/
                 path (and NuttX's own Kconfig auto-discovery, which
                 follows symlinks) both keep working unchanged.
 
+  vaporshell/   Symlink to the vaporshell repo (a sibling checkout, see the
+                workspace tree above) -- split out for the same reason
+                toybox was, plus one more: keeping vaporshell independent
+                of any specific command set, so it isn't coupled to
+                vaporOS-coreutils specifically and other NuttX projects
+                could use it with a different one. See that repo's own
+                README/docs/design.md for the shell itself.
+
   docs/         vapor-api.md and vaporterm.md -- design notes for the vapor
                 API and the vterm_fb milestones, more detailed than this file.
+                (vaporshell's own design doc moved to its own repo, along
+                with the code -- see vaporshell/docs/design.md.)
 
-  setup.sh      clones nuttx+apps+vaporOS-coreutils, wires them all in, compile
+  setup.sh      clones nuttx+apps+vaporOS-coreutils+vaporshell, wires them
+                all in, compile
 
   Makefile      required by NuttX's app-directory convention
                 (delegates to apps/Directory.mk)
