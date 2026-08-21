@@ -67,6 +67,22 @@ kconfig-tweak --enable CONFIG_SYSTEM_VI
 kconfig-tweak --enable CONFIG_LIBC_STRERROR
 kconfig-tweak --enable CONFIG_LIBC_LOCALTIME
 
+# Foundational binary-loading support (docs/binary-loading.md): lets a
+# separately-compiled ELF file -- built with MODULE=m instead of the
+# usual MODULE=y -- be placed on a writable filesystem and run by
+# name, the same way any builtin is. This is additive only: it changes
+# nothing about how existing, compiled-in apps build or run, and is
+# the real foundation for "download or compile a program on vaporOS
+# itself and run it", not something bolted onto NSH/vaporshell.
+kconfig-tweak --enable CONFIG_ELF
+kconfig-tweak --enable CONFIG_LIBC_ENVPATH
+kconfig-tweak --enable CONFIG_EXECFUNCS_HAVE_SYMTAB
+kconfig-tweak --enable CONFIG_EXECFUNCS_SYSTEM_SYMTAB
+kconfig-tweak --enable CONFIG_BOARDCTL_APP_SYMTAB
+kconfig-tweak --disable CONFIG_DISABLE_MOUNTPOINT
+kconfig-tweak --enable CONFIG_FS_HOSTFS
+kconfig-tweak --enable CONFIG_SIM_HOSTFS
+
 make olddefconfig
 make -j"$(nproc)"
 
