@@ -201,15 +201,18 @@ The experience should feel much closer to using an old workstation than a modern
 No real hardware needed to start. NuttX has its own simulator (`sim`
 target) that runs as a native host binary.
 
+Windows dev happens through WSL/Git Bash/MSYS2 -- some of NuttX's own
+tooling (`./tools/configure.sh`) is a real bash script, so there's no
+avoiding bash somewhere in the chain either way.
+
 ```
-./setup.sh          # or setup.ps1 on Windows -- clones nuttx+apps, wires
-                     # this repo in as apps/external
+./setup.sh          # clones nuttx+apps+vaporOS-coreutils, wires them
+                     # all in as siblings (see LAYOUT below)
 make -f dev.mk build
 ../nuttx/nuttx
 ```
 
 boots into a real NSH shell, entirely on your machine, no board required.
-`dev.mk` picks bash+`.sh` or PowerShell+`.ps1` automatically based on OS.
 
 `make -f dev.mk build BOARD=vterm_fb` builds vaporterm, the custom
 graphical terminal described in STATUS above (needs an X server).
@@ -218,6 +221,27 @@ graphical terminal described in STATUS above (needs an X server).
 ---
 
 ## LAYOUT
+
+`setup.sh` expects (and creates) this exact sibling layout -- nothing
+here is relative to your home directory or any fixed path, only to
+each other, so the whole thing can live anywhere:
+
+```
+some-parent-dir/
+  nuttx/              pinned NuttX checkout
+  apps/                pinned nuttx-apps checkout
+                       apps/external -> ../vaporOS-nuttx
+  vaporOS-nuttx/        this repo
+                       toybox -> ../vaporOS-coreutils
+  vaporOS-coreutils/   the toybox/coreutils port, its own repo (see below)
+```
+
+`apps/external` and `vaporOS-nuttx/toybox` are both symlinks that only
+resolve correctly because of this fixed, sibling relationship -- if
+you ever move one of these directories independently of the others,
+both will break. `setup.sh` sets this up for you automatically; this
+is only worth knowing explicitly if you're scripting around it, or
+setting the workspace up by hand instead.
 
 ```
 vaporOS-nuttx/
@@ -246,10 +270,20 @@ vaporOS-nuttx/
                 signal that NuttX's POSIX layer is real. See their own
                 top-of-file comments for more.
 
+  toybox/       Symlink to the vaporOS-coreutils repo (a sibling checkout,
+                see the workspace tree above) -- the toybox/coreutils port
+                grew past a compatibility port into its own fork (own
+                defaults, own commands beyond what toybox or NSH provide),
+                so it now lives, versions, and builds its own commit
+                history independently. Kept as a symlink here rather than
+                a git submodule so the existing $(APPDIR)/external/toybox
+                path (and NuttX's own Kconfig auto-discovery, which
+                follows symlinks) both keep working unchanged.
+
   docs/         vapor-api.md and vaporterm.md -- design notes for the vapor
                 API and the vterm_fb milestones, more detailed than this file.
 
-  setup.sh      clones nuttx+apps, wires this repo in, compile
+  setup.sh      clones nuttx+apps+vaporOS-coreutils, wires them all in, compile
 
   Makefile      required by NuttX's app-directory convention
                 (delegates to apps/Directory.mk)
