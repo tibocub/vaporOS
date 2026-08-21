@@ -14,13 +14,8 @@
 BOARD ?= nsh
 NUTTX := $(abspath ../nuttx)
 
-ifeq ($(OS),Windows_NT)
-  RUN := powershell -NoProfile -ExecutionPolicy Bypass -File
-  EXT := .ps1
-else
-  RUN := bash
-  EXT := .sh
-endif
+RUN := bash
+EXT := .sh
 
 .PHONY: build clean run help
 
