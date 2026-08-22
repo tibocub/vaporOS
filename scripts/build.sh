@@ -67,6 +67,18 @@ kconfig-tweak --enable CONFIG_SYSTEM_VI
 kconfig-tweak --enable CONFIG_LIBC_STRERROR
 kconfig-tweak --enable CONFIG_LIBC_LOCALTIME
 
+# Command history (up/down arrows, Ctrl+P/Ctrl+N -- the latter added
+# by patches/nuttx-apps/readline-history-ctrlpn.patch, see setup.sh)
+# and Emacs-style line editing, including Ctrl+R reverse incremental
+# search. CMD_HISTORY_LEN/LINELEN sized generously (not the small-
+# device defaults) since this is a sim-only concern right now, not a
+# real, memory-constrained target.
+kconfig-tweak --enable CONFIG_READLINE_CMD_HISTORY
+kconfig-tweak --set-val CONFIG_READLINE_CMD_HISTORY_LEN 64
+kconfig-tweak --set-val CONFIG_READLINE_CMD_HISTORY_LINELEN 128
+kconfig-tweak --enable CONFIG_READLINE_EDIT_EMACS
+kconfig-tweak --enable CONFIG_READLINE_EDIT_EMACS_REVERSE_SEARCH
+
 # Foundational binary-loading support (docs/binary-loading.md): lets a
 # separately-compiled ELF file -- built with MODULE=m instead of the
 # usual MODULE=y -- be placed on a writable filesystem and run by

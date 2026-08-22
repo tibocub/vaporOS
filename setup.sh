@@ -20,6 +20,19 @@ fi
 if [ ! -d apps ]; then
   git clone https://github.com/apache/nuttx-apps.git apps
   git -C apps checkout "$APPS_COMMIT"
+
+  # Small, targeted patch to upstream apps/system/readline: adds
+  # readline_history_load()/readline_history_save() (no public API
+  # exists otherwise -- g_cmdhist is file-private, so an application
+  # has no way to persist history to a file without this) and
+  # Ctrl+P/Ctrl+N history navigation (only the escape-sequence up/down
+  # arrow path exists upstream). Kept as a checked-in patch file here,
+  # applied once right after cloning, rather than a fork of
+  # nuttx-apps -- keeps the modification tracked in version control
+  # (unlike a manual, local-only edit, which a fresh `apps` clone on
+  # another machine would silently lose) without the ongoing
+  # maintenance of a full fork. See patches/README.md.
+  git -C apps apply "$DIR/patches/nuttx-apps/readline-history-ctrlpn.patch"
 fi
 
 # vaporOS-coreutils and vaporshell: both split into their own repos

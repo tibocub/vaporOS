@@ -1,0 +1,356 @@
+diff --git a/include/system/readline.h b/include/system/readline.h
+index 8f40c92c1..bf1c0ed84 100644
+--- a/include/system/readline.h
++++ b/include/system/readline.h
+@@ -115,6 +115,44 @@ FAR const char *readline_prompt(FAR const char *prompt);
+ #  define readline_prompt(p)
+ #endif
+ 
++/****************************************************************************
++ * Name: readline_history_load
++ *
++ *   Populate the in-memory command history from a file previously
++ *   written by readline_history_save(). Meant to be called once, before
++ *   the first readline() call.
++ *
++ * Input Parameters:
++ *   path - Path to the history file to read.
++ *
++ * Returned values:
++ *   OK on success (a missing file is not an error -- "no history yet"
++ *   is a normal, expected condition). A negated errno value for any
++ *   other failure.
++ *
++ ****************************************************************************/
++
++#ifdef CONFIG_READLINE_CMD_HISTORY
++int readline_history_load(FAR const char *path);
++
++/****************************************************************************
++ * Name: readline_history_save
++ *
++ *   Write the in-memory command history out to a file readable by
++ *   readline_history_load(). Meant to be called once, on a clean exit.
++ *
++ * Input Parameters:
++ *   path - Path to the history file to write (created if it doesn't
++ *          exist, truncated if it does).
++ *
++ * Returned values:
++ *   OK on success, a negated errno value on failure.
++ *
++ ****************************************************************************/
++
++int readline_history_save(FAR const char *path);
++#endif
++
+ /****************************************************************************
+  * Name: readline_extmatch
+  *
+diff --git a/system/readline/readline_common.c b/system/readline/readline_common.c
+index 872fcf768..fb1dc258e 100644
+--- a/system/readline/readline_common.c
++++ b/system/readline/readline_common.c
+@@ -60,6 +60,10 @@
+ #  define CTRL_K  11  /* ^K - Kill to end of line */
+ #  define CTRL_U  21  /* ^U - Kill to beginning of line */
+ #  define CTRL_W  23  /* ^W - Kill word backward */
++#  ifdef CONFIG_READLINE_CMD_HISTORY
++#    define CTRL_N  14  /* ^N - Next (newer) history entry */
++#    define CTRL_P  16  /* ^P - Previous (older) history entry */
++#  endif
+ #  ifdef CONFIG_READLINE_EDIT_EMACS_REVERSE_SEARCH
+ #    define CTRL_G  7   /* ^G - Cancel incremental search */
+ #    define CTRL_R  18  /* ^R - Reverse incremental search */
+@@ -682,6 +686,118 @@ static void isearch_redraw(FAR struct rl_common_s *vtbl,
+ #  endif /* CONFIG_READLINE_EDIT_EMACS_REVERSE_SEARCH */
+ #endif /* CONFIG_READLINE_ECHO */
+ 
++#ifdef CONFIG_READLINE_CMD_HISTORY
++/****************************************************************************
++ * Name: history_push
++ *
++ * Description:
++ *   Push one line onto the circular history buffer, unless it's a
++ *   duplicate of the most recent entry -- the exact logic submit_line()
++ *   always ran on Enter, extracted unchanged so readline_history_load()
++ *   can reuse it too (loading a saved history file is "push every saved
++ *   line, in the order saved," the same operation).
++ *
++ ****************************************************************************/
++
++static void history_push(FAR const char *line, int nch)
++{
++  int i;
++
++  if (strncmp(line, g_cmdhist.buf[g_cmdhist.head], nch + 1) != 0)
++    {
++      g_cmdhist.head = (g_cmdhist.head + 1) % RL_CMDHIST_LEN;
++
++      for (i = 0; (i < nch) && i < (RL_CMDHIST_LINELEN - 1); i++)
++        {
++          g_cmdhist.buf[g_cmdhist.head][i] = line[i];
++        }
++
++      g_cmdhist.buf[g_cmdhist.head][i] = '\0';
++
++      if (g_cmdhist.len < RL_CMDHIST_LEN)
++        {
++          g_cmdhist.len++;
++        }
++    }
++}
++
++#  ifdef CONFIG_READLINE_EDIT_EMACS
++/****************************************************************************
++ * Name: history_navigate
++ *
++ * Description:
++ *   Move g_cmdhist.offset by one step (older or newer) and replace the
++ *   line's content with whatever history entry is now at that offset
++ *   (or the empty "not browsing history" line, once back at the most
++ *   recent position). Only reachable via Ctrl+P/Ctrl+N -- the up/down
++ *   arrow keys have their own, separate copy of this same logic
++ *   further down, predating this helper's own extraction; unifying the
++ *   two is a reasonable future cleanup, not required for this to work.
++ *
++ ****************************************************************************/
++
++static void history_navigate(FAR struct rl_common_s *vtbl, FAR char *buf,
++                              int buflen, FAR int *pnch, FAR int *pcursor,
++                              bool older)
++{
++  int nch = 0;
++  int i;
++
++  if (older)
++    {
++      /* Go to the past command in history */
++
++      g_cmdhist.offset--;
++
++      if (-g_cmdhist.offset >= g_cmdhist.len)
++        {
++          g_cmdhist.offset = -(g_cmdhist.len - 1);
++        }
++    }
++  else
++    {
++      /* Go to the recent command in history */
++
++      g_cmdhist.offset++;
++
++      if (g_cmdhist.offset > 1)
++        {
++          g_cmdhist.offset = 1;
++        }
++    }
++
++  if (g_cmdhist.offset != 1)
++    {
++      int idx = g_cmdhist.head + g_cmdhist.offset;
++
++      /* Circular buffer wrap around */
++
++      if (idx < 0)
++        {
++          idx = idx + RL_CMDHIST_LEN;
++        }
++      else if (idx >= RL_CMDHIST_LEN)
++        {
++          idx = idx - RL_CMDHIST_LEN;
++        }
++
++      for (i = 0;
++           g_cmdhist.buf[idx][i] != '\0' && nch + 1 < buflen;
++           i++)
++        {
++          buf[nch++] = g_cmdhist.buf[idx][i];
++        }
++
++      buf[nch] = '\0';
++    }
++
++  *pnch = nch;
++  *pcursor = nch;
++  redraw_line(vtbl, buf, nch, nch);
++}
++#  endif /* CONFIG_READLINE_EDIT_EMACS */
++#endif /* CONFIG_READLINE_CMD_HISTORY */
++
+ /****************************************************************************
+  * Name: submit_line
+  *
+@@ -699,35 +815,13 @@ static void isearch_redraw(FAR struct rl_common_s *vtbl,
+ static ssize_t submit_line(FAR char *buf, int nch)
+ {
+ #ifdef CONFIG_READLINE_CMD_HISTORY
+-  int i;
+-
+   /* Save history of command, only if there was something typed besides
+    * the return character.
+    */
+ 
+   if (nch >= 1)
+     {
+-      /* If this command is the one at the top of the circular buffer,
+-       * don't save it again.
+-       */
+-
+-      if (strncmp(buf, g_cmdhist.buf[g_cmdhist.head], nch + 1) != 0)
+-        {
+-          g_cmdhist.head = (g_cmdhist.head + 1) % RL_CMDHIST_LEN;
+-
+-          for (i = 0; (i < nch) && i < (RL_CMDHIST_LINELEN - 1); i++)
+-            {
+-              g_cmdhist.buf[g_cmdhist.head][i] = buf[i];
+-            }
+-
+-          g_cmdhist.buf[g_cmdhist.head][i] = '\0';
+-
+-          if (g_cmdhist.len < RL_CMDHIST_LEN)
+-            {
+-              g_cmdhist.len++;
+-            }
+-        }
+-
++      history_push(buf, nch);
+       g_cmdhist.offset = 1;
+     }
+ #endif /* CONFIG_READLINE_CMD_HISTORY */
+@@ -781,6 +875,117 @@ FAR const char *readline_prompt(FAR const char *prompt)
+ }
+ #endif
+ 
++#ifdef CONFIG_READLINE_CMD_HISTORY
++/****************************************************************************
++ * Name: readline_history_load
++ *
++ *   Populate the in-memory command history from a file previously
++ *   written by readline_history_save() -- one command per line, oldest
++ *   first. Existing history is not cleared first, so this can also be
++ *   used to merge a second file in; call it once, before the first
++ *   readline() call, for the normal "load saved history at startup"
++ *   case.
++ *
++ *   The in-memory history this reads into (g_cmdhist) has no public
++ *   accessor otherwise -- it's file-private to this translation unit --
++ *   so an application has no way to load saved history without this
++ *   function existing.
++ *
++ * Input Parameters:
++ *   path - Path to the history file to read.
++ *
++ * Returned values:
++ *   OK on success. A missing file is not an error (returns OK, matching
++ *   "no history yet" as a normal, expected condition, e.g. on first
++ *   boot before any history file has ever been written) -- only a
++ *   genuine open failure for another reason returns a negated errno
++ *   value.
++ *
++ ****************************************************************************/
++
++int readline_history_load(FAR const char *path)
++{
++  FAR FILE *stream;
++  char line[RL_CMDHIST_LINELEN];
++
++  stream = fopen(path, "r");
++  if (stream == NULL)
++    {
++      return errno == ENOENT ? OK : -errno;
++    }
++
++  while (fgets(line, sizeof(line), stream) != NULL)
++    {
++      int nch = strlen(line);
++
++      if (nch > 0 && line[nch - 1] == '\n')
++        {
++          line[--nch] = '\0';
++        }
++
++      if (nch > 0)
++        {
++          history_push(line, nch);
++        }
++    }
++
++  fclose(stream);
++  return OK;
++}
++
++/****************************************************************************
++ * Name: readline_history_save
++ *
++ *   Write the in-memory command history out to a file, oldest entry
++ *   first, one command per line -- the format readline_history_load()
++ *   expects. Meant to be called once, on a clean application exit;
++ *   there's no automatic periodic save, so a crash or power loss loses
++ *   whatever history hasn't been explicitly saved yet.
++ *
++ * Input Parameters:
++ *   path - Path to the history file to write (created if it doesn't
++ *          exist, truncated if it does).
++ *
++ * Returned values:
++ *   OK on success, a negated errno value on failure (e.g. -ENOENT if
++ *   the containing directory doesn't exist -- this function does not
++ *   create it).
++ *
++ ****************************************************************************/
++
++int readline_history_save(FAR const char *path)
++{
++  FAR FILE *stream;
++  int i;
++
++  stream = fopen(path, "w");
++  if (stream == NULL)
++    {
++      return -errno;
++    }
++
++  for (i = 0; i < g_cmdhist.len; i++)
++    {
++      /* Oldest entry first: with g_cmdhist.len valid entries and 'head'
++       * the most recent, the oldest is 'len - 1' slots before head,
++       * same wraparound the rest of this file already uses.
++       */
++
++      int idx = g_cmdhist.head - (g_cmdhist.len - 1) + i;
++
++      if (idx < 0)
++        {
++          idx += RL_CMDHIST_LEN;
++        }
++
++      fprintf(stream, "%s\n", g_cmdhist.buf[idx]);
++    }
++
++  fclose(stream);
++  return OK;
++}
++#endif /* CONFIG_READLINE_CMD_HISTORY */
++
+ /****************************************************************************
+  * Name: readline_extmatch
+  *
+@@ -1527,6 +1732,17 @@ ssize_t readline_common(FAR struct rl_common_s *vtbl, FAR char *buf,
+           redraw_line(vtbl, buf, nch, cursor);
+         }
+ 
++#  ifdef CONFIG_READLINE_CMD_HISTORY
++      else if (ch == CTRL_P && g_cmdhist.len > 0) /* Ctrl+P = older history */
++        {
++          history_navigate(vtbl, buf, buflen, &nch, &cursor, true);
++        }
++      else if (ch == CTRL_N && g_cmdhist.len > 0) /* Ctrl+N = newer history */
++        {
++          history_navigate(vtbl, buf, buflen, &nch, &cursor, false);
++        }
++#  endif /* CONFIG_READLINE_CMD_HISTORY */
++
+ #  ifdef CONFIG_READLINE_EDIT_EMACS_REVERSE_SEARCH
+       else if (ch == CTRL_R && g_cmdhist.len > 0)
+         {
