@@ -36,13 +36,6 @@ if [ ! -d apps ]; then
 fi
 
 # vaporOS-coreutils and vaporshell: both split into their own repos
-# once each grew past what "part of vaporOS-nuttx" meant -- coreutils
-# once it became a real toybox/NSH fork with its own commands, not
-# just a compatibility port; vaporshell so it can be independent of
-# any specific command set, usable by other NuttX projects with a
-# different one entirely. Both cloned as siblings here, same pattern
-# as nuttx/apps above, and referenced via symlinks rather than
-# restructuring apps/external itself -- keeps every existing
 # $(APPDIR)/external/<name> path reference (in each repo's own
 # Makefile) working unchanged, since that logical path still resolves
 # correctly through the extra symlink hop.
@@ -61,14 +54,29 @@ fi
 [ -e "$DIR/vaporshell" ] || ln -s ../vaporshell "$DIR/vaporshell"
 
 if command -v apt-get >/dev/null 2>&1; then
-  MISSING=""
-  command -v kconfig-tweak >/dev/null || MISSING="$MISSING kconfig-frontends"
-  command -v genromfs >/dev/null || MISSING="$MISSING genromfs"
-  command -v xxd >/dev/null || MISSING="$MISSING xxd"
-  dpkg -s libx11-dev >/dev/null 2>&1 || MISSING="$MISSING libx11-dev"
-  [ -n "$MISSING" ] && { sudo apt-get update -qq; sudo apt-get install -y $MISSING; }
+  sudo apt-get update -qq
+	sudo apt install \
+	bison flex gettext texinfo libncurses5-dev libncursesw5-dev xxd \
+  git gperf automake libtool pkg-config build-essential gperf genromfs \
+	libgmp-dev libmpc-dev libmpfr-dev libisl-dev binutils-dev libelf-dev \
+	libexpat1-dev gcc-multilib g++-multilib picocom u-boot-tools util-linux \
+	kconfig-frontend
+elif command -v dnf >/dev/null 2>&1; then
+	sudo dnf install \
+	bison flex gettext texinfo ncurses-devel ncurses ncurses-compat-libs \
+	git gperf automake libtool pkgconfig @development-tools gperf genromfs \
+	gmp-devel mpfr-devel libmpc-devel isl-devel binutils-devel elfutils-libelf-devel \
+	expat-devel gcc-c++ g++ picocom uboot-tools util-linux
+elif command -v dnf >/dev/null 2>&1 && ! command -v kconfig >/dev/null 2>&1; then
+	git clone https://github.com/patacongo/tools
+	cd tools/kconfig-frontends
+	./configure --enable-mconf --disable-nconf --disable-gconf --disable-qconf
+	aclocal
+	automake
+	make
+	sudo make install
 else
-  echo "No apt-get -- install kconfig-frontends, genromfs, xxd, libx11-dev manually." >&2
+  echo "No apt-get or dnf -- install kconfig-frontends, genromfs, xxd, libx11-dev manually." >&2
 fi
 
 echo "Done. cd $DIR && make -f dev.mk build"

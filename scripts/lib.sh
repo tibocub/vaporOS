@@ -2,9 +2,9 @@
 # Shared by build.sh and clean.sh. Source after `cd nuttx`.
 
 # apps/interpreters/lua's own distclean deletes the downloaded lua
-# tarball every time, forcing a re-download (and GitHub rate-limit
-# risk) on every rebuild even though lua's source never changed.
-# Preserve it across distclean instead.
+# tarball every time, forcing a re-download on every rebuild even
+# though lua's source never changed. Preserve it across distclean
+# instead.
 distclean_preserving_lua() {
   local TARBALL DIR="../apps/interpreters/lua/lua"
   TARBALL=$(ls ../apps/interpreters/lua/v*.tar.gz 2>/dev/null | head -1)

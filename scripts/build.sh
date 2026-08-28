@@ -99,6 +99,20 @@ kconfig-tweak --enable CONFIG_SIM_HOSTFS
 # source tree for known vaporOS/NuttX portability gaps, runnable both
 # on the dev host and directly on vaporOS itself.
 kconfig-tweak --enable CONFIG_VAPOROS_COMPAT_SCAN
+kconfig-tweak --enable CONFIG_SCHED_CHILD_STATUS
+kconfig-tweak --set-val CONFIG_LINE_MAX 1024
+
+# Required for vaporshell's own pipeline support (cmd1 | cmd2) to
+# report correct exit statuses. Confirmed directly, the hard way:
+# without this, NuttX's own waitpid() can only retrieve a child's
+# exit status if that child hasn't already exited by the time
+# waitpid() is called on it (NuttX's own Kconfig help text for this
+# option describes exactly this race) -- a pipeline has to spawn every
+# stage before waiting on any of them, so a fast-exiting command
+# (`true`, say) routinely beats the wait loop to the punch, and
+# without this option that waitpid() call fails outright rather than
+# returning the status it actually exited with.
+kconfig-tweak --enable CONFIG_SCHED_CHILD_STATUS
 
 make olddefconfig
 make -j"$(nproc)"
