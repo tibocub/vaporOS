@@ -14,7 +14,14 @@ if VAPOROS_COMPAT_SCAN
 
 config VAPOROS_COMPAT_SCAN_PROGNAME
 	string "Program name"
-	default "compat-scan"
+	# Deliberately not "compat-scan": NuttX's own builtin-app
+	# registration (apps/Application.mk) renames main() to
+	# "$(PROGNAME)_main" via a raw -Dmain=... compiler define, with
+	# no sanitization of PROGNAME at all -- a hyphen there produces
+	# an invalid C identifier ("compat-scan_main", parsed as
+	# subtraction), a real, confirmed hard build failure, not a
+	# hypothetical one.
+	default "compat_scan"
 
 config VAPOROS_COMPAT_SCAN_PRIORITY
 	int "compat-scan task priority"
