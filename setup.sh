@@ -4,22 +4,16 @@
 # build -- see dev.mk (`make -f dev.mk build`).
 set -euo pipefail
 
-NUTTX_COMMIT="a0fcbb7957e916d03e346de9bdf5d1be2dd4ccd0"
-APPS_COMMIT="569d8f31dbd7934a7e20606db311fcfb1e86b59d"
-COREUTILS_COMMIT="2e5c5bc5d66ac272f149c2d175adfcecbd4ed5d9"
-VAPORSHELL_COMMIT="26c7f94674eaa8f59f8c9f995c1b6d20331459fa"
-
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$(dirname "$DIR")"
 
 if [ ! -d nuttx ]; then
   git clone https://github.com/apache/nuttx.git
-  git -C nuttx checkout "$NUTTX_COMMIT"
+  git -C nuttx checkout "releases/13.0"
 fi
 
 if [ ! -d apps ]; then
-  git clone https://github.com/apache/nuttx-apps.git apps
-  git -C apps checkout "$APPS_COMMIT"
+  git clone https://github.com/apache/nuttx-apps.git
 
   # Small, targeted patch to upstream apps/system/readline: adds
   # readline_history_load()/readline_history_save() (no public API
@@ -32,7 +26,7 @@ if [ ! -d apps ]; then
   # (unlike a manual, local-only edit, which a fresh `apps` clone on
   # another machine would silently lose) without the ongoing
   # maintenance of a full fork. See patches/README.md.
-  git -C apps apply "$DIR/patches/nuttx-apps/readline-history-ctrlpn.patch"
+  git -C nuttx-apps apply "$DIR/patches/nuttx-apps/readline-history-ctrlpn.patch"
 fi
 
 # vaporOS-coreutils and vaporshell: both split into their own repos
@@ -41,15 +35,13 @@ fi
 # correctly through the extra symlink hop.
 if [ ! -d vaporOS-coreutils ]; then
   git clone https://github.com/tibocub/vaporOS-coreutils.git
-  git -C vaporOS-coreutils checkout "$COREUTILS_COMMIT"
 fi
 
 if [ ! -d vaporshell ]; then
   git clone https://github.com/tibocub/vaporshell.git
-  git -C vaporshell checkout "$VAPORSHELL_COMMIT"
 fi
 
-[ -e apps/external ] || ln -s "$DIR" apps/external
+[ -e apps/external ] || ln -s "$DIR" nuttx-apps/external
 [ -e "$DIR/toybox" ] || ln -s ../vaporOS-coreutils "$DIR/toybox"
 [ -e "$DIR/vaporshell" ] || ln -s ../vaporshell "$DIR/vaporshell"
 

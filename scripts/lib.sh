@@ -6,8 +6,8 @@
 # though lua's source never changed. Preserve it across distclean
 # instead.
 distclean_preserving_lua() {
-  local TARBALL DIR="../apps/interpreters/lua/lua"
-  TARBALL=$(ls ../apps/interpreters/lua/v*.tar.gz 2>/dev/null | head -1)
+  local TARBALL DIR="../nuttx-apps/interpreters/lua/lua"
+  TARBALL=$(ls ../nuttx-apps/interpreters/lua/v*.tar.gz 2>/dev/null | head -1)
 
   [ -n "$TARBALL" ] && mv "$TARBALL" /tmp/vaporos-lua.tar.gz
   if [ -d "$DIR" ] && [ -f "$DIR/lualib.h" ]; then
@@ -19,7 +19,7 @@ distclean_preserving_lua() {
 
   make distclean
 
-  [ -f /tmp/vaporos-lua.tar.gz ] && mv /tmp/vaporos-lua.tar.gz "../apps/interpreters/lua/$(basename "$TARBALL")"
+  [ -f /tmp/vaporos-lua.tar.gz ] && mv /tmp/vaporos-lua.tar.gz "../nuttx-apps/interpreters/lua/$(basename "$TARBALL")"
   [ -d /tmp/vaporos-lua-dir ] && mv /tmp/vaporos-lua-dir "$DIR"
 
   # Tarball present but never unpacked (e.g. manually placed): unpack
@@ -27,7 +27,7 @@ distclean_preserving_lua() {
   if [ -n "$TARBALL" ] && [ ! -f "$DIR/lualib.h" ]; then
     local VER; VER=$(basename "$TARBALL" .tar.gz | sed 's/^v//')
     (
-      cd ../apps/interpreters/lua &&
+      cd ../nuttx-apps/interpreters/lua &&
       tar -xzf "$(basename "$TARBALL")" &&
       [ -d "lua-${VER}/src" ] && mv "lua-${VER}"/src/*.c "lua-${VER}"/src/*.h "lua-${VER}/"
       mv "lua-${VER}" lua

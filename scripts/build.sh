@@ -7,8 +7,8 @@ DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 WORKSPACE="$(dirname "$DIR")"
 cd "$WORKSPACE"
 
-if [ ! -e apps/external ]; then
-  echo "apps/external missing -- run setup.sh (or setup.ps1) first." >&2
+if [ ! -e nuttx-apps/external ]; then
+  echo "nuttx-apps/external missing -- run setup.sh (or setup.ps1) first." >&2
   exit 1
 fi
 
