@@ -88,4 +88,5 @@ else
   echo "No apt-get or dnf -- install kconfig-frontends, genromfs, xxd, libx11-dev manually." >&2
 fi
 
-echo "Done. cd $DIR && make -f dev.mk build"
+echo "Done. cd $DIR && make -f dev.mk build to compile vaporOS"
+echo "generate compile-commands.json with scripts/gen-compile-commands.sh"

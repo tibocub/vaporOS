@@ -19,7 +19,10 @@ run:
 	@"$(NUTTX)/nuttx"
 
 help:
-	@echo "make -f dev.mk build sim:nsh"
+	@echo "make -f dev.mk build                    # the nsh board (NuttX's sim:nsh)"
 	@echo "make -f dev.mk build BOARD=vterm_fb"
 	@echo "make -f dev.mk clean"
 	@echo "make -f dev.mk run"
+	@echo
+	@echo "The board is BOARD=..., not a goal: an extra goal such as sim:nsh makes"
+	@echo "make exit with an error after the build has finished."

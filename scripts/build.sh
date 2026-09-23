@@ -114,6 +114,23 @@ kconfig-tweak --set-val CONFIG_LINE_MAX 1024
 # returning the status it actually exited with.
 kconfig-tweak --enable CONFIG_SCHED_CHILD_STATUS
 
+# Task-local storage slots. vaporOS-coreutils gives every running tbx task
+# its own copy of toybox's toys/this/toybuf/libbuf globals (see
+# toybox/nuttx-shims/vapor_ctx.h); without it two applets in a pipeline
+# share them and corrupt each other. Needs 1 slot for tbx; 4 leaves room.
+kconfig-tweak --set-val CONFIG_TLS_TASK_NELEM 4
+
+# POSIX regex (regcomp/regexec/regfree/regerror), needed by the toybox
+# applets that match patterns: cut -F now, grep/sed/expr/find -regex
+# next. NuttX ships a TRE-based implementation (libs/libc/regex) but
+# gates it behind ALLOW_MIT_COMPONENTS, a licence opt-in -- fine for an
+# MIT-licensed project, but it has to be asked for explicitly. Known
+# gap versus glibc/musl: no REG_STARTEND, so patterns can't be matched
+# against buffers with embedded NUL bytes (lib/portability.h defines it
+# as 0 when absent; text with embedded NULs is truncated at the NUL).
+kconfig-tweak --enable CONFIG_ALLOW_MIT_COMPONENTS
+kconfig-tweak --enable CONFIG_LIBC_REGEX
+
 make olddefconfig
 make -j"$(nproc)"
 

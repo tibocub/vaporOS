@@ -6,7 +6,10 @@ if VAPOROS_PORTABLE_WC
 
 config VAPOROS_PORTABLE_WC_PROGNAME
 	string "Program name"
-	default "wc"
+	# Not "wc": NuttX renames main() to <PROGNAME>_main(), and wc_main is also
+	# toybox's wc applet -- the two collided at link time (gdb: `tbx wc` ran
+	# portable_wc_main). "vwc" matches portable_cat's "vcat".
+	default "vwc"
 
 config VAPOROS_PORTABLE_WC_PRIORITY
 	int "priority"
