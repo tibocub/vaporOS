@@ -66,6 +66,9 @@ kconfig-tweak --enable CONFIG_SYSTEM_READLINE # nsh_script.c needs this declared
 kconfig-tweak --enable CONFIG_SYSTEM_VI
 kconfig-tweak --enable CONFIG_LIBC_STRERROR
 kconfig-tweak --enable CONFIG_LIBC_LOCALTIME
+kconfig-tweak --enable CONFIG_COVERAGE_NONE
+kconfig-tweak --disable CONFIG_COVERAGE_ALL
+kconfig-tweak --disable CONFIG_COVERAGE_TOOLCHAIN
 
 # Command history (up/down arrows, Ctrl+P/Ctrl+N -- the latter added
 # by patches/nuttx-apps/readline-history-ctrlpn.patch, see setup.sh)
