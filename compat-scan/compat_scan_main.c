@@ -454,6 +454,38 @@ static const struct pattern_s pat_frsize[] =
   { NULL, 0 }
 };
 
+static const struct pattern_s pat_inoidentity[] =
+{
+  { "st_ino", MATCH_IDENT },
+  { "st_dev", MATCH_IDENT },
+  { "same_file", MATCH_CALL },
+  { "same_dev_ino", MATCH_CALL },
+  { NULL, 0 }
+};
+
+static const struct pattern_s pat_lseekprobe[] =
+{
+  { "0, SEEK_CUR", MATCH_SUBSTRING },
+  { "0,SEEK_CUR", MATCH_SUBSTRING },
+  { NULL, 0 }
+};
+
+static const struct pattern_s pat_linkchmod[] =
+{
+  { "link", MATCH_CALL },
+  { "linkat", MATCH_CALL },
+  { "chmod", MATCH_CALL },
+  { "fchmod", MATCH_CALL },
+  { "fchmodat", MATCH_CALL },
+  { NULL, 0 }
+};
+
+static const struct pattern_s pat_strftimez[] =
+{
+  { "%Z", MATCH_SUBSTRING },
+  { NULL, 0 }
+};
+
 static const struct pattern_s pat_environ[] =
 {
   { "", MATCH_ENVIRON_ASSIGN },
@@ -598,6 +630,44 @@ static const struct check_s CHECKS[] =
     "glibc/BSD-style 'hand me a new environ' needs rewriting against "
     "the individual calls.",
     pat_environ
+  },
+  {
+    "st-ino-identity", SEV_REVIEW,
+    "No NuttX filesystem fills in st_ino or st_dev (FAT, hostfs, tmpfs, "
+    "littlefs, romfs all leave them 0; only pseudo-fs nodes get an inode "
+    "number), so any 'same file?' test comparing (st_dev, st_ino) is "
+    "true for EVERY pair of files -- toybox's cp refused everything with "
+    "\"'dst' is 'src'\". Compare resolved paths instead (see "
+    "vapor_same_node() in vaporOS-coreutils/lib/portability.c), and "
+    "treat inode-keyed hash tables/loop detection the same way.",
+    pat_inoidentity
+  },
+  {
+    "lseek-seekable-probe", SEV_REVIEW,
+    "lseek(fd, 0, SEEK_CUR) is used as an 'is this seekable?' probe, but "
+    "NuttX's lseek() succeeds on pipes, ptys and serial devices (no seek "
+    "method => it just bumps a meaningless offset) instead of failing "
+    "with ESPIPE. A 'read some bytes, then lseek back' peek on a pipe "
+    "silently loses the data (grep's binary-file check ate the first 256 "
+    "bytes of `cat f | grep x`). Check fstat() for S_ISREG/S_ISBLK "
+    "first, as vapor_lseek() in vaporOS-coreutils/nuttx-shims/"
+    "vapor_libc.h does.",
+    pat_lseekprobe
+  },
+  {
+    "link-chmod-enosys", SEV_REVIEW,
+    "link()/linkat()/chmod()/fchmod() return ENOSYS ('Invalid system "
+    "call number') on the sim's FAT /tmp (hard links and permission bits "
+    "don't exist there); some other filesystems may differ. Callers "
+    "need to report the error honestly, not assume success.",
+    pat_linkchmod
+  },
+  {
+    "strftime-zone-name", SEV_REVIEW,
+    "NuttX's strftime() has no %Z: inside a longer format it prints "
+    "nothing, and a bare \"%Z\" makes it return 0. Expand the zone "
+    "abbreviation (tm_zone / tzname[]) yourself first.",
+    pat_strftimez
   },
   {
     "dlopen-usage", SEV_REVIEW,

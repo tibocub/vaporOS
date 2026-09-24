@@ -44,6 +44,7 @@ mount-table-introspection = 4
 environ-replace           = 4
 inotify                   = 3
 getdelim-uninit-size      = 2
+link-chmod-enosys         = 2
 paths-h                   = 1
 has-include-probe         = 1
 utmpx-h                   = 1
@@ -52,6 +53,11 @@ chroot-call               = 1
 shared-globals            = 1
 app-name-collision        = 1
 regex-disabled            = 1
+st-ino-identity           = 1
+lseek-seekable-probe      = 1
+strftime-zone-name        = 1
+utsname-field-stride      = 1
+signed-char-index         = 1
 
 ---- LOGS -------------------------------
 [toybox]
@@ -104,3 +110,28 @@ regex-disabled            = 1
 (1) regex-disabled -- CONFIG_LIBC_REGEX (TRE) is off unless
     CONFIG_ALLOW_MIT_COMPONENTS is set; cut -F needs it, grep/sed
     will too. Enabled in scripts/build.sh.
+(1) st-ino-identity -- NuttX filesystems never fill st_ino/st_dev, so
+    same_file() (lib/lib.c) is true for every pair of files: cp/mv
+    refused every copy ("'dst' is 'src'") since batch 3. cp.c now
+    compares resolved paths on NuttX (vapor_same_node(),
+    lib/portability.c). test -ef and tail -F's dev/ino check have the
+    same latent problem, not fixed yet.
+(1) lseek-seekable-probe -- grep's binary check does read(256) +
+    lseek(-len) on any fd where lseek(fd,0,SEEK_CUR) succeeds; on
+    NuttX that is true for pipes too, so `cat f | grep x` lost its
+    input. Fixed once by vapor_lseek() (nuttx-shims/vapor_libc.h):
+    ESPIPE for FIFOs, sockets and ttys.
+(2) link-chmod-enosys -- ln (link/symlink) and chmod fail with ENOSYS
+    on the sim's FAT /tmp. Not worked around: the applets report the
+    error, which is honest. Not yet checked on hostfs.
+(1) strftime-zone-name -- date's default format and +%Z printed an empty
+    zone (bare %Z: "bad format"). nx_strftime() in date.c expands %Z
+    from tm_zone/tzname first.
+(1) utsname-field-stride -- toybox uname walks struct utsname in
+    sizeof(sysname) strides (assumes equal field sizes); NuttX's
+    fields differ, so `uname -a`/`-m` printed garbage. uname.c now
+    indexes fields by name. Not a compat-scan check: too specific.
+(1) signed-char-index -- tr indexes TT.map[] with plain (signed) char:
+    bytes >= 0x80 (always for tr -c) hit TT.map[-128..-1], a heap
+    corruption that hung the whole sim on NuttX (harmless-looking on
+    glibc). Cast to unsigned char. A real bug upstream too.
