@@ -345,6 +345,8 @@ static const char *match_pattern(const char *line, const struct pattern_s *pat)
 static const struct pattern_s pat_fork[] =
 {
   { "fork", MATCH_CALL },
+  { "vfork", MATCH_CALL },
+  { "XVFORK", MATCH_CALL },
   { NULL, 0 }
 };
 
@@ -483,6 +485,23 @@ static const struct pattern_s pat_linkchmod[] =
 static const struct pattern_s pat_strftimez[] =
 {
   { "%Z", MATCH_SUBSTRING },
+  { NULL, 0 }
+};
+
+static const struct pattern_s pat_execfamily[] =
+{
+  { "execv", MATCH_CALL },
+  { "execvp", MATCH_CALL },
+  { "execve", MATCH_CALL },
+  { "execl", MATCH_CALL },
+  { "execlp", MATCH_CALL },
+  { NULL, 0 }
+};
+
+static const struct pattern_s pat_argmax[] =
+{
+  { "_SC_ARG_MAX", MATCH_IDENT },
+  { "ARG_MAX", MATCH_IDENT },
   { NULL, 0 }
 };
 
@@ -668,6 +687,24 @@ static const struct check_s CHECKS[] =
     "nothing, and a bare \"%Z\" makes it return 0. Expand the zone "
     "abbreviation (tm_zone / tzname[]) yourself first.",
     pat_strftimez
+  },
+  {
+    "exec-family", SEV_REVIEW,
+    "exec*() as 'replace this process with that program' is not a "
+    "pattern this project relies on: vaporOS-coreutils runs the target "
+    "with posix_spawnp() instead (vapor_spawn() in "
+    "lib/portability.c: start it, wait, exit with its status). Read "
+    "what the call site expects to happen to the calling process.",
+    pat_execfamily
+  },
+  {
+    "arg-max-sysconf", SEV_REVIEW,
+    "sysconf(_SC_ARG_MAX)/ARG_MAX is 4096 on NuttX, and a spawned "
+    "task's argv is copied onto that task's own (small) stack: "
+    "computations like 'ARG_MAX - environment - 4096' go negative, and "
+    "long command lines can't simply be batched up to ARG_MAX. See "
+    "VAPOR_ARGS_MAX in vaporOS-coreutils/lib/portability.h.",
+    pat_argmax
   },
   {
     "dlopen-usage", SEV_REVIEW,

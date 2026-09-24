@@ -45,6 +45,9 @@ environ-replace           = 4
 inotify                   = 3
 getdelim-uninit-size      = 2
 link-chmod-enosys         = 2
+fork-call                 = 2
+exec-family               = 2
+arg-max-sysconf           = 2
 paths-h                   = 1
 has-include-probe         = 1
 utmpx-h                   = 1
@@ -58,6 +61,9 @@ lseek-seekable-probe      = 1
 strftime-zone-name        = 1
 utsname-field-stride      = 1
 signed-char-index         = 1
+open-dot                  = 1
+environ-null-when-empty   = 1
+dot-path-in-fat           = 1
 
 ---- LOGS -------------------------------
 [toybox]
@@ -135,3 +141,28 @@ signed-char-index         = 1
     bytes >= 0x80 (always for tr -c) hit TT.map[-128..-1], a heap
     corruption that hung the whole sim on NuttX (harmless-looking on
     glibc). Cast to unsigned char. A real bug upstream too.
+(2) fork-call -- vfork()/XVFORK() + exec in toybox's xpopen_setup() and
+    xargs, where the child runs our code (redirections, environment)
+    before exec. Replaced by vapor_spawn()
+    (posix_spawnp + file actions; falls back to `tbx <name>` for tbx
+    commands) in lib/portability.c. `timeout` needs the child callback
+    and re-run-self paths and is not ported (neither is `time`, which uses
+    XVFORK and wait4).
+(2) exec-family -- execve()/execvp() in env.c and xexec(): run the
+    target as a child and exit with its status instead.
+(2) arg-max-sysconf -- xargs and find derived their batch size from
+    sysconf(_SC_ARG_MAX) (4096 on NuttX) minus the environment: negative,
+    "command too long". argv is copied onto the spawned task's small
+    stack; VAPOR_ARGS_MAX (a quarter of the tbx stack) replaces it.
+(1) open-dot -- find -exec's open(".") fails (trailing "." is never
+    resolved; same class as the dirtree.c fixes). Uses the real cwd path.
+(1) environ-null-when-empty -- get_environ_ptr() is NULL while a task has
+    no environment variables (`env -i cmd`); every `for (e = environ; *e;
+    ...)` dereferenced NULL and hung the sim. vapor_environ() in
+    nuttx-shims/vapor_libc.h returns an empty array instead.
+(1) dot-path-in-fat -- paths with a "." or ".." component inside a FAT
+    directory fail with ENOTDIR (`cat sub/./q.txt`, `cat ../p.txt` from
+    /tmp/sub). Reproduced on the sim's FAT /tmp; not fixed, cause
+    unknown, not checked on hostfs. Breaks `find . -exec cat {} \;`
+    from a subdirectory.
+
