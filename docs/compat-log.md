@@ -48,6 +48,7 @@ link-chmod-enosys         = 2
 fork-call                 = 2
 exec-family               = 2
 arg-max-sysconf           = 2
+dot-path-in-fat           = 2
 paths-h                   = 1
 has-include-probe         = 1
 utmpx-h                   = 1
@@ -63,7 +64,7 @@ utsname-field-stride      = 1
 signed-char-index         = 1
 open-dot                  = 1
 environ-null-when-empty   = 1
-dot-path-in-fat           = 1
+fnmatch-pathname-ignored  = 1
 
 ---- LOGS -------------------------------
 [toybox]
@@ -165,4 +166,23 @@ dot-path-in-fat           = 1
     /tmp/sub). Reproduced on the sim's FAT /tmp; not fixed, cause
     unknown, not checked on hostfs. Breaks `find . -exec cat {} \;`
     from a subdirectory.
+(1) dot-path-in-fat -- root cause found (was left unexplained in the
+    batch 6 notes): NuttX's VFS never resolves '.'/'..' in a path
+    before handing it to the filesystem driver, and FAT's
+    fat_finddirentry() always walks from the volume root treating every
+    segment literally, so 'sub/./f' or '../f' fails with ENOTDIR from
+    inside a FAT subdirectory. Fixed at the toybox layer: every
+    path-taking libc call (open, stat, lstat, chdir, opendir, unlink,
+    rmdir, access, mkdir, rename) is wrapped in nuttx-shims/
+    vapor_libc.h to resolve '.'/'..' into a plain absolute path first,
+    skipped when the path has neither (the common case, no extra
+    getcwd() cost). vaporshell already had the equivalent
+    (vs_path_normalize() / VS_FS()) for its own builtins; toybox
+    applets, spawned as separate tasks, needed their own copy.
+(1) fnmatch-pathname-ignored -- NuttX's fnmatch() ignores FNM_PATHNAME
+    for a single '*' (always refuses to cross '/', matching only its
+    own nonstandard '**' across '/'), so find's `-path "*sub*"` (calls
+    fnmatch() with flags=0 on purpose) never matched. Own
+    fnmatch() in nuttx-shims/vapor_libc.h, standard recursive
+    semantics, used only by toybox.
 

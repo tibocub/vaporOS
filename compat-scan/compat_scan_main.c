@@ -505,6 +505,20 @@ static const struct pattern_s pat_argmax[] =
   { NULL, 0 }
 };
 
+static const struct pattern_s pat_dotpath[] =
+{
+  { "\"./\"", MATCH_SUBSTRING },
+  { "\"../\"", MATCH_SUBSTRING },
+  { "dirtree_path", MATCH_CALL },
+  { NULL, 0 }
+};
+
+static const struct pattern_s pat_fnmatch[] =
+{
+  { "fnmatch", MATCH_CALL },
+  { NULL, 0 }
+};
+
 static const struct pattern_s pat_environ[] =
 {
   { "", MATCH_ENVIRON_ASSIGN },
@@ -705,6 +719,33 @@ static const struct check_s CHECKS[] =
     "long command lines can't simply be batched up to ARG_MAX. See "
     "VAPOR_ARGS_MAX in vaporOS-coreutils/lib/portability.h.",
     pat_argmax
+  },
+  {
+    "dot-path-in-fat", SEV_REVIEW,
+    "NuttX's VFS never canonicalizes '.' or '..' in a path -- it hands "
+    "the raw string straight to the filesystem driver, and FAT's "
+    "fat_finddirentry() always walks from the volume root treating "
+    "every segment (including '.'/'..') as a literal 8.3 name lookup, "
+    "so paths like 'sub/./f' or '../f' fail with ENOTDIR once you're "
+    "inside a FAT subdirectory. Any code building a path with a "
+    "literal '.' or '..' component (not just passing one straight "
+    "through from the user) needs to resolve it first -- see "
+    "vapor_resolve_path() in vaporOS-coreutils/nuttx-shims/"
+    "vapor_libc.h (wraps open/stat/chdir/etc.) and vs_path_normalize() "
+    "in vaporshell/util.c (its own VS_FS() macro).",
+    pat_dotpath
+  },
+  {
+    "fnmatch-pathname-ignored", SEV_REVIEW,
+    "NuttX's fnmatch() (libs/libc/misc/lib_fnmatch.c) hardcodes a "
+    "single '*' to never cross '/' -- it ignores the flags argument "
+    "entirely for that decision (only its own nonstandard '**' "
+    "extension crosses '/'). POSIX says a plain '*' should match '/' "
+    "too unless FNM_PATHNAME is passed. Code calling fnmatch() with "
+    "flags=0 expecting a multi-segment match (find's -path, glob-style "
+    "matching across directories) will silently fail to match. See "
+    "vapor_fnmatch() in vaporOS-coreutils/nuttx-shims/vapor_libc.h.",
+    pat_fnmatch
   },
   {
     "dlopen-usage", SEV_REVIEW,
