@@ -62,6 +62,17 @@ en MTD RP2040_FLASH_LITTLEFS FS_LITTLEFS
 kconfig-tweak --set-val CONFIG_RP2040_FLASH_FS_OFFSET 0x100000
 en FS_PROCFS FS_PROCFS_REGISTER
 
+# Tab completion (commands + paths) through the vaporOS readline hook, and
+# command history on the up/down arrows.
+en READLINE_ECHO READLINE_TABCOMPLETION READLINE_CMD_HISTORY
+
+# readline echoes one byte per write(); give the CDC/ACM driver more headroom
+# for bursts of tiny writes.
+kconfig-tweak --set-val CONFIG_CDCACM_NRDREQS 8
+kconfig-tweak --set-val CONFIG_CDCACM_NWRREQS 8
+kconfig-tweak --set-val CONFIG_CDCACM_RXBUFSIZE 513
+kconfig-tweak --set-val CONFIG_CDCACM_TXBUFSIZE 513
+
 make olddefconfig
 make -j"$(nproc)"
 arm-none-eabi-size nuttx

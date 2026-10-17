@@ -1,0 +1,215 @@
+diff --git a/include/system/readline.h b/include/system/readline.h
+index 5ab963879..390230c16 100644
+--- a/include/system/readline.h
++++ b/include/system/readline.h
+@@ -144,6 +144,34 @@ FAR const struct extmatch_vtable_s *
+   readline_extmatch(FAR const struct extmatch_vtable_s *vtbl);
+ #endif
+ 
++/****************************************************************************
++ * Name: readline_completer
++ *
++ *   vaporOS addition. Registers a callback that replaces the built-in
++ *   builtin-name-only tab completion with application-defined completion
++ *   (per-word, paths, ...).
++ *
++ *   The callback receives the text before the cursor (line[0..len)) and
++ *   must write the text to insert at the cursor (the common prefix of all
++ *   candidates, minus what was already typed) into ins[0..inslen). It
++ *   returns the number of candidates; when that is more than one it must
++ *   also call list() once per candidate so readline can display them.
++ *
++ * Returned values:
++ *   The previously registered completer.
++ *
++ ****************************************************************************/
++
++#ifdef CONFIG_READLINE_TABCOMPLETION
++typedef CODE void (*readline_list_f)(FAR void *ctx, FAR const char *name);
++typedef CODE int (*readline_completer_f)(FAR const char *line, int len,
++                                         FAR char *ins, int inslen,
++                                         readline_list_f list,
++                                         FAR void *ctx);
++
++readline_completer_f readline_completer(readline_completer_f fn);
++#endif
++
+ /****************************************************************************
+  * Name: readline_fd
+  *
+diff --git a/system/readline/readline_common.c b/system/readline/readline_common.c
+index 0fd3b9396..96e41e933 100644
+--- a/system/readline/readline_common.c
++++ b/system/readline/readline_common.c
+@@ -27,6 +27,7 @@
+ #include <nuttx/config.h>
+ 
+ #include <stdbool.h>
++#include <stdlib.h>
+ #include <string.h>
+ #include <ctype.h>
+ #include <errno.h>
+@@ -81,6 +82,8 @@ static FAR const char *g_readline_prompt = NULL;
+ #ifdef CONFIG_READLINE_HAVE_EXTMATCH
+ static FAR const struct extmatch_vtable_s *g_extmatch_vtbl = NULL;
+ #endif
++
++static readline_completer_f g_completer = NULL;
+ #endif /* CONFIG_READLINE_TABCOMPLETION */
+ 
+ #ifdef CONFIG_READLINE_CMD_HISTORY
+@@ -155,6 +158,124 @@ static int count_builtin_matches(FAR char *buf, FAR int *matches,
+  ****************************************************************************/
+ 
+ #ifdef CONFIG_READLINE_TABCOMPLETION
++/* vaporOS: application-defined completion, see readline_completer() */
++
++struct completer_ctx_s
++{
++  FAR struct rl_common_s *vtbl;
++  FAR char *out;                /* output is gathered and written at once */
++  size_t len;
++  size_t cap;
++  int count;
++};
++
++static void completer_put(FAR struct completer_ctx_s *c, char ch)
++{
++  if (c->len + 1 > c->cap)
++    {
++      size_t ncap = c->cap == 0 ? 256 : c->cap * 2;
++      FAR char *p = realloc(c->out, ncap);
++
++      if (p == NULL)
++        {
++          return;
++        }
++
++      c->out = p;
++      c->cap = ncap;
++    }
++
++  c->out[c->len++] = ch;
++}
++
++static void completer_puts(FAR struct completer_ctx_s *c, FAR const char *s)
++{
++  while (*s != '\0')
++    {
++      completer_put(c, *s++);
++    }
++}
++
++static void completer_list(FAR void *arg, FAR const char *name)
++{
++  FAR struct completer_ctx_s *c = arg;
++
++  if (c->count++ == 0)
++    {
++      completer_put(c, '\n');
++    }
++
++  completer_puts(c, "  ");
++  completer_puts(c, name);
++  completer_put(c, '\n');
++}
++
++static void custom_completion(FAR struct rl_common_s *vtbl, char *buf,
++                              int buflen, int *nch)
++{
++  struct completer_ctx_s ctx;
++  char ins[96];
++  int n;
++  int i;
++  int inslen;
++
++  memset(&ctx, 0, sizeof(ctx));
++  ctx.vtbl = vtbl;
++  ins[0]   = '\0';
++  buf[*nch] = '\0';
++
++  n = g_completer(buf, *nch, ins, sizeof(ins), completer_list, &ctx);
++  if (n <= 0)
++    {
++      free(ctx.out);
++      return;
++    }
++
++  inslen = strlen(ins);
++  if (*nch + inslen + 1 > buflen)
++    {
++      inslen = buflen - *nch - 1;
++    }
++
++  if (inslen < 0)
++    {
++      inslen = 0;
++    }
++
++  memcpy(buf + *nch, ins, inslen);
++  buf[*nch + inslen] = '\0';
++
++  if (ctx.count > 0)
++    {
++      /* The candidate list scrolled the line away: redraw prompt + line */
++
++      if (g_readline_prompt != NULL)
++        {
++          completer_puts(&ctx, g_readline_prompt);
++        }
++
++      for (i = 0; i < *nch; i++)
++        {
++          completer_put(&ctx, buf[i]);
++        }
++    }
++
++  for (i = 0; i < inslen; i++)
++    {
++      completer_put(&ctx, buf[*nch + i]);
++    }
++
++  /* One write: the USB console wedges under bursts of one-byte writes. */
++
++  if (ctx.len > 0)
++    {
++      RL_WRITE(vtbl, ctx.out, ctx.len);
++    }
++
++  free(ctx.out);
++  *nch += inslen;
++}
++
+ static void tab_completion(FAR struct rl_common_s *vtbl, char *buf,
+                            int buflen, int *nch)
+ {
+@@ -174,6 +295,12 @@ static void tab_completion(FAR struct rl_common_s *vtbl, char *buf,
+   int i;
+   int j;
+ 
++  if (g_completer != NULL)
++    {
++      custom_completion(vtbl, buf, buflen, nch);
++      return;
++    }
++
+   if (len >= 1)
+     {
+ #ifdef CONFIG_BUILTIN
+@@ -406,6 +533,16 @@ FAR const char *readline_prompt(FAR const char *prompt)
+ }
+ #endif
+ 
++
++#ifdef CONFIG_READLINE_TABCOMPLETION
++readline_completer_f readline_completer(readline_completer_f fn)
++{
++  readline_completer_f ret = g_completer;
++  g_completer = fn;
++  return ret;
++}
++#endif
++
+ /****************************************************************************
+  * Name: readline_extmatch
+  *

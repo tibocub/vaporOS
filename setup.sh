@@ -44,6 +44,11 @@ if [ ! -d nuttx-apps ]; then
             "real gap against releases/13.0 -- see this script's own comment" \
             "above). vaporshell/NSH readline itself still works fine without" \
             "it; only history persistence/Ctrl+P/Ctrl+N navigation are missing."
+
+  # Tab-completion hook (readline_completer()) used by vaporshell on NuttX.
+  git -C nuttx-apps apply "$DIR/patches/nuttx-apps/readline-completer-hook.patch" \
+    || echo "WARNING: readline-completer-hook.patch did not apply; vaporshell" \
+            "tab completion will not build on NuttX."
 fi
 
 # vaporOS-coreutils and vaporshell: both split into their own repos

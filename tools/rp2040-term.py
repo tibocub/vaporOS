@@ -26,7 +26,13 @@ def drain(idle):
     while time.time() < end:
         r, _, _ = select.select([fd], [], [], 0.1)
         if r:
-            out += os.read(fd, 4096); end = time.time() + idle
+            try:
+                d = os.read(fd, 4096)
+            except OSError:
+                break
+            if not d:
+                break
+            out += d; end = time.time() + idle
     return out.decode(errors="replace")
 
 def send(b):
