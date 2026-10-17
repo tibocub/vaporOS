@@ -26,6 +26,14 @@ en INTERPRETERS_LUA LIBM LIBC_FLOATINGPOINT VAPOROS_VLUA
 kconfig-tweak --set-val CONFIG_VAPOROS_VLUA_STACKSIZE 24576
 # vi (NuttX apps system/vi): 80x24 VT100 editor
 en SYSTEM_VI
+# dmesg: the syslog goes to a RAM log (the USB console isn't a syslog channel)
+en RAMLOG RAMLOG_SYSLOG
+kconfig-tweak --set-val CONFIG_RAMLOG_BUFSIZE 2048
+kconfig-tweak --set-val CONFIG_SYSLOG_MAX_CHANNELS 2
+kconfig-tweak --set-str CONFIG_SYSLOG_DEVPATH /dev/kmsg
+# ps: stack usage
+en STACK_COLORATION
+kconfig-tweak --set-str CONFIG_INIT_ENTRYNAME vinit
 kconfig-tweak --set-val CONFIG_SYSTEM_VI_COLS 80
 kconfig-tweak --set-val CONFIG_SYSTEM_VI_ROWS 24
 kconfig-tweak --set-val CONFIG_SYSTEM_VI_STACKSIZE 8192
