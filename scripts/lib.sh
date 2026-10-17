@@ -7,7 +7,7 @@
 # instead.
 distclean_preserving_lua() {
   local TARBALL DIR="../nuttx-apps/interpreters/lua/lua"
-  TARBALL=$(ls ../nuttx-apps/interpreters/lua/v*.tar.gz 2>/dev/null | head -1)
+  TARBALL=$(ls ../nuttx-apps/interpreters/lua/v*.tar.gz 2>/dev/null | head -1 || true)  # none yet is fine (first build, or a manual distclean removed it)
 
   [ -n "$TARBALL" ] && mv "$TARBALL" /tmp/vaporos-lua.tar.gz
   if [ -d "$DIR" ] && [ -f "$DIR/lualib.h" ]; then
