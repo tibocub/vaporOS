@@ -24,6 +24,11 @@ en VAPOROS_VAPORSHELL VAPOROS_TOYBOX VAPOROS_VINIT
 # Lua (vlua): NuttX's interpreter sources + libm; vlua needs a roomy stack.
 en INTERPRETERS_LUA LIBM LIBC_FLOATINGPOINT VAPOROS_VLUA
 kconfig-tweak --set-val CONFIG_VAPOROS_VLUA_STACKSIZE 24576
+# vi (NuttX apps system/vi): 80x24 VT100 editor
+en SYSTEM_VI
+kconfig-tweak --set-val CONFIG_SYSTEM_VI_COLS 80
+kconfig-tweak --set-val CONFIG_SYSTEM_VI_ROWS 24
+kconfig-tweak --set-val CONFIG_SYSTEM_VI_STACKSIZE 8192
 # Boot straight into vaporshell on the USB console; NSH's session isn't used.
 kconfig-tweak --set-str CONFIG_INIT_ENTRYPOINT vinit_main
 # vaporshell/toybox runtime needs (pipelines, spawn, symlinks, regex, locale)

@@ -49,6 +49,11 @@ if [ ! -d nuttx-apps ]; then
   git -C nuttx-apps apply "$DIR/patches/nuttx-apps/readline-completer-hook.patch" \
     || echo "WARNING: readline-completer-hook.patch did not apply; vaporshell" \
             "tab completion will not build on NuttX."
+
+  # termcurses (vi): a "no data" key read must wait, not spin.
+  git -C nuttx-apps apply "$DIR/patches/nuttx-apps/termcurses-read-retry.patch" \
+    || echo "WARNING: termcurses-read-retry.patch did not apply; vi may" \
+            "busy-loop on the USB console."
 fi
 
 # vaporOS-coreutils and vaporshell: both split into their own repos

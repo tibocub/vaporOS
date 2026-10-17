@@ -1,0 +1,24 @@
+diff --git a/system/termcurses/tcurses_vt100.c b/system/termcurses/tcurses_vt100.c
+index ac4685a4e..20dca13ca 100644
+--- a/system/termcurses/tcurses_vt100.c
++++ b/system/termcurses/tcurses_vt100.c
+@@ -1193,6 +1193,19 @@ static int tcurses_vt100_getkeycode(FAR struct termcurses_s *dev,
+           priv->keycount = read(fd, priv->keybuf, sizeof(priv->keybuf)-1);
+           if (priv->keycount <= 0)
+             {
++              /* vaporOS: a read that returns "no data" (non-blocking fd,
++               * VMIN=0) used to return -1 and callers retried at full
++               * speed, starving the USB/serial worker threads.  Wait a
++               * little and retry; only a real error ends the wait.
++               */
++
++              if (priv->keycount == 0 || errno == EAGAIN || errno == EINTR)
++                {
++                  priv->keycount = 0;
++                  usleep(10000);
++                  continue;
++                }
++
+               return -1;
+             }
+ 

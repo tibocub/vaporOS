@@ -32,5 +32,14 @@ RP2040 / Waveshare RP2040-Zero support for vaporOS; apply with
   `RP2040_FLASH_FS_OFFSET` (default 1 MiB, mounted at /flash). Unlike the
   upstream SmartFS option it is not part of the firmware image, so files
   survive reflashing.
+- `rp2040_usbdev.c`: (1) BUFF_STATUS/SIE_STATUS are write-1-to-clear, so
+  they are now cleared with a plain write instead of a read-modify-write
+  that dropped other endpoints' completions; (2) a 10 ms watchdog that
+  completes/re-arms a bulk endpoint whose completion was lost.
+- `drivers/usbdev/cdcacm.c`: the TX ring setup (`uart_xmitchars_dma`) ran
+  from both the writing thread and the bulk-IN completion interrupt without
+  exclusion and could advance the ring twice; this wedged the console under
+  bursts of output (tab-completion lists, vi's screen paint). It is now a
+  critical section.
 
 Build with `scripts/build-rp2040.sh`; flash with `tools/rp2040-flash.sh`.

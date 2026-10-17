@@ -38,7 +38,7 @@ index 5ab963879..390230c16 100644
   * Name: readline_fd
   *
 diff --git a/system/readline/readline_common.c b/system/readline/readline_common.c
-index 0fd3b9396..96e41e933 100644
+index 0fd3b9396..302d31208 100644
 --- a/system/readline/readline_common.c
 +++ b/system/readline/readline_common.c
 @@ -27,6 +27,7 @@
@@ -213,3 +213,18 @@ index 0fd3b9396..96e41e933 100644
  /****************************************************************************
   * Name: readline_extmatch
   *
+@@ -654,6 +791,14 @@ ssize_t readline_common(FAR struct rl_common_s *vtbl, FAR char *buf,
+             }
+         }
+ 
++      /* vaporOS: Ctrl-D on an empty line is end-of-file */
++
++      else if (ch == 0x04 && nch == 0)
++        {
++          buf[0] = '\0';
++          return 0;
++        }
++
+       /* Check for the beginning of a VT100 escape sequence */
+ 
+       else if (ch == ASCII_ESC)
