@@ -21,6 +21,9 @@ export PATH="${PICOTOOL_DIR:-$TC/picotool/picotool}:${ARM_TOOLCHAIN_BIN:-$(echo 
 
 en() { for o in "$@"; do kconfig-tweak --enable "CONFIG_$o"; done; }
 en VAPOROS_VAPORSHELL VAPOROS_TOYBOX VAPOROS_VINIT
+# Lua (vlua): NuttX's interpreter sources + libm; vlua needs a roomy stack.
+en INTERPRETERS_LUA LIBM LIBC_FLOATINGPOINT VAPOROS_VLUA
+kconfig-tweak --set-val CONFIG_VAPOROS_VLUA_STACKSIZE 24576
 # Boot straight into vaporshell on the USB console; NSH's session isn't used.
 kconfig-tweak --set-str CONFIG_INIT_ENTRYPOINT vinit_main
 # vaporshell/toybox runtime needs (pipelines, spawn, symlinks, regex, locale)
