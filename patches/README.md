@@ -27,4 +27,10 @@ RP2040 / Waveshare RP2040-Zero support for vaporOS; apply with
 - `rp2040_crashdump.c`: records PC/LR/regs of a crash in SRAM at 0x2003ff00;
   read back with `xd 0x2003ff00 128`.
 
+- `rp2040_flash_mtd.c` + Kconfig + bring-up: `CONFIG_RP2040_FLASH_LITTLEFS`,
+  a LittleFS (autoformat) on a *fixed* flash region at
+  `RP2040_FLASH_FS_OFFSET` (default 1 MiB, mounted at /flash). Unlike the
+  upstream SmartFS option it is not part of the firmware image, so files
+  survive reflashing.
+
 Build with `scripts/build-rp2040.sh`; flash with `tools/rp2040-flash.sh`.

@@ -55,6 +55,13 @@ en TTY_SIGINT TTY_SIGSTP FS_BINFS
 kconfig-tweak --set-val CONFIG_TTY_SIGINT_CHAR 0x03  # Ctrl-C; Ctrl-D stays EOF
 kconfig-tweak --set-val CONFIG_WATCHDOG_AUTOMONITOR_TIMEOUT 4000
 
+# Persistent storage: LittleFS on the upper half of the 2MB flash (fixed
+# offset, so reflashing the firmware leaves the files alone), mounted at
+# /flash. The firmware has to stay below CONFIG_RP2040_FLASH_FS_OFFSET.
+en MTD RP2040_FLASH_LITTLEFS FS_LITTLEFS
+kconfig-tweak --set-val CONFIG_RP2040_FLASH_FS_OFFSET 0x100000
+en FS_PROCFS FS_PROCFS_REGISTER
+
 make olddefconfig
 make -j"$(nproc)"
 arm-none-eabi-size nuttx
