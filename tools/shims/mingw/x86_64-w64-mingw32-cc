@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+# NuttX's sim Make.defs calls $(CROSSDEV)cc; mingw-w64 only ships ...-gcc.
+#
+# Make.defs adds -U_WIN32 so NuttX's own code does not believe it runs on
+# Windows. With mingw that breaks the compiler's bundled <stdarg.h>/<float.h>,
+# which #include_next the Windows runtime headers; those #error unless _WIN32
+# is defined. Almost nothing in NuttX tests _WIN32 (checked), so leave it
+# defined rather than shim every header.
+args=()
+for a in "$@"; do
+  [ "$a" = "-U_WIN32" ] || args+=("$a")
+done
+exec x86_64-w64-mingw32-gcc "${args[@]}"

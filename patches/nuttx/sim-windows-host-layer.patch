@@ -1,0 +1,198 @@
+vaporOS NuttX patch: sim-windows-host-layer   (WORK IN PROGRESS -- spike, not used by any board yet)
+
+Problem:   NuttX's simulator cannot be built for a Windows host from Linux (or with
+           MinGW/MSYS2) because the build only selects the Windows host layer
+           (arch/sim/src/sim/win/) for CONFIG_WINDOWS_NATIVE, which is a cmd.exe
+           build environment with backslash paths. Everything else falls back to
+           sim/posix/, which needs <sys/mman.h>, <termios.h>, <spawn.h>, ... that
+           MinGW does not have. Separately, the win/ layer has fallen behind the
+           sim: it lacks sim_testset.c and sim_hostsmp.c, which every sim build
+           needs, so it does not even get past dependency generation.
+Evidence:  Cross-compiling sim:nsh with x86_64-w64-mingw32-gcc from Linux:
+             - without this patch: "fatal error: spawn.h: No such file or directory"
+               for sim/posix/sim_hostmisc.c (and statvfs.h, mman.h, termios.h)
+             - with the Makefile change only: "No rule to make target
+               'sim_hostsmp.c'" (then sim_testset.c)
+Fix:       (1) arch/sim/src/Makefile: use sim/win for any Windows host that is not
+           Cygwin (Cygwin has a POSIX layer), not only WINDOWS_NATIVE.
+           (2) win/sim_testset.c: identical to the POSIX one (portable stdatomic).
+           (3) win/sim_hostsmp.c: single-CPU stubs. SMP on Windows needs a design
+           without POSIX signals as IPIs and is not supported.
+Status:    Compiles through dependency generation only. The 64-bit MinGW target
+           (x86_64-w64-mingw32) CANNOT work: Windows x86_64 is LLP64 (long is 32 bits)
+           and NuttX assumes long is pointer-sized ("Compiler definition mismatch for
+           LONG_MAX", wint_t/wctype_t conflicts, hundreds of format warnings). The
+           next step is a 32-bit target (i686-w64-mingw32 with CONFIG_HOST_X86), whose
+           data model NuttX does support. See docs/windows-sim.md.
+Upstream:  (1)-(3) MAYBE, after the Windows build is shown to work end to end. Not
+           ready to send: nothing here has produced a running binary.
+
+Apply: git -C ../nuttx apply ../vaporOS/patches/nuttx/sim-windows-host-layer.patch   (setup.sh does this)
+
+diff --git a/arch/sim/src/Makefile b/arch/sim/src/Makefile
+index db65fea2dc..6ffc7b78ed 100644
+--- a/arch/sim/src/Makefile
++++ b/arch/sim/src/Makefile
+@@ -99,8 +99,19 @@ ifeq ($(CONFIG_ARCH_HAVE_FORK),y)
+ CSRCS += sim_fork.c
+ endif
+ 
++# The host-side files come from sim/win for any Windows host that does not
++# provide a POSIX layer (Cygwin does). That includes MinGW/MSYS2 builds and a
++# MinGW cross-compile from Linux, which are not "Windows native" build
++# environments (cmd.exe, backslash paths) and so don't set WINDOWS_NATIVE.
++SIM_WINHOST = $(CONFIG_WINDOWS_NATIVE)
++ifeq ($(CONFIG_HOST_WINDOWS),y)
++ifneq ($(CONFIG_WINDOWS_CYGWIN),y)
++  SIM_WINHOST = y
++endif
++endif
++
+ VPATH = :sim
+-ifeq ($(CONFIG_WINDOWS_NATIVE),y)
++ifeq ($(SIM_WINHOST),y)
+   VPATH += :sim/win
+ else
+   VPATH += :sim/posix
+diff --git a/arch/sim/src/sim/win/sim_hostsmp.c b/arch/sim/src/sim/win/sim_hostsmp.c
+new file mode 100644
+index 0000000000..1f16a318ae
+--- /dev/null
++++ b/arch/sim/src/sim/win/sim_hostsmp.c
+@@ -0,0 +1,56 @@
++/****************************************************************************
++ * arch/sim/src/sim/win/sim_hostsmp.c
++ *
++ * SPDX-License-Identifier: Apache-2.0
++ *
++ * Licensed to the Apache Software Foundation (ASF) under one or more
++ * contributor license agreements.  See the NOTICE file distributed with
++ * this work for additional information regarding copyright ownership.  The
++ * ASF licenses this file to you under the Apache License, Version 2.0 (the
++ * "License"); you may not use this file except in compliance with the
++ * License.  You may obtain a copy of the License at
++ *
++ *   http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
++ * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.  See the
++ * License for the specific language governing permissions and limitations
++ * under the License.
++ *
++ ****************************************************************************/
++
++/* Single-CPU only.  The POSIX version builds SMP on pthread signals
++ * (SIGUSR1/2 as IPIs), which Windows does not have; an SMP simulator on
++ * Windows would need a different design (e.g. APCs).  Until then CONFIG_SMP
++ * is not supported with this host layer (host files cannot see CONFIG_*, so
++ * it is not enforced here), but the symbols every sim build references must
++ * still exist.
++ */
++
++#include <errno.h>
++#include <stddef.h>
++
++#include "sim_internal.h"
++
++void host_cpu0_start(void)
++{
++}
++
++int host_cpu_start(int cpu, void *stack, size_t size)
++{
++  return -ENOSYS;
++}
++
++void host_send_ipi(int cpu)
++{
++}
++
++void host_send_func_call_ipi(int cpu)
++{
++}
++
++int up_cpu_index(void)
++{
++  return 0;
++}
+diff --git a/arch/sim/src/sim/win/sim_testset.c b/arch/sim/src/sim/win/sim_testset.c
+new file mode 100644
+index 0000000000..08ac32b57e
+--- /dev/null
++++ b/arch/sim/src/sim/win/sim_testset.c
+@@ -0,0 +1,74 @@
++/****************************************************************************
++ * arch/sim/src/sim/posix/sim_testset.c
++ *
++ * SPDX-License-Identifier: Apache-2.0
++ *
++ * Licensed to the Apache Software Foundation (ASF) under one or more
++ * contributor license agreements.  See the NOTICE file distributed with
++ * this work for additional information regarding copyright ownership.  The
++ * ASF licenses this file to you under the Apache License, Version 2.0 (the
++ * "License"); you may not use this file except in compliance with the
++ * License.  You may obtain a copy of the License at
++ *
++ *   http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
++ * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.  See the
++ * License for the specific language governing permissions and limitations
++ * under the License.
++ *
++ ****************************************************************************/
++
++/****************************************************************************
++ * Included Files
++ ****************************************************************************/
++
++#include <stdint.h>
++#include <stdatomic.h>
++
++#include "sim_internal.h"
++
++/****************************************************************************
++ * Public Functions
++ ****************************************************************************/
++
++/****************************************************************************
++ * Name: up_testset
++ *
++ * Description:
++ *   Perform an atomic test and set operation on the provided spinlock.
++ *
++ *   This function must be provided via the architecture-specific logic.
++ *
++ * Input Parameters:
++ *   lock  - A reference to the spinlock object.
++ *
++ * Returned Value:
++ *   The spinlock is always locked upon return.  The previous value of the
++ *   spinlock variable is returned, either SP_LOCKED if the spinlock was
++ *   previously locked (meaning that the test-and-set operation failed to
++ *   obtain the lock) or SP_UNLOCKED if the spinlock was previously unlocked
++ *   (meaning that we successfully obtained the lock).
++ *
++ ****************************************************************************/
++
++uint8_t up_testset(volatile uint8_t *lock)
++{
++#ifdef CONFIG_SMP
++  /* In the multi-CPU SMP case, we use atomic operation to assure that the
++   * following test and set is atomic.
++   */
++
++  return atomic_exchange((_Atomic uint8_t *)lock, 1);
++#else
++
++  /* In the non-SMP case, the simulation is implemented with a single thread
++   * the test-and-set operation is inherently atomic.
++   */
++
++  uint8_t ret = *lock;
++  *lock = 1;
++  return ret;
++#endif
++}
