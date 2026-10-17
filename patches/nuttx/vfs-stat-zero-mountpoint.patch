@@ -1,0 +1,39 @@
+vaporOS NuttX patch: vfs-stat-zero-mountpoint
+
+Problem:   `ls -l /bin` (any mounted filesystem that fills only part of struct
+           stat) printed garbage: owner 3735928559 (0xDEADBEEF), link count
+           48879 (0xBEEF), dates like "12847078-50427214-49 53:235", and a
+           "total 1.7G". Seen on the RP2040 and on the simulator.
+Evidence:  nx_stat() zeroes the buffer (RESET_BUF) for pseudo-filesystem nodes
+           but not before calling a mountpoint's stat(). binfs_stat() sets only
+           st_mode, st_size, st_blksize and st_blocks (st_uid/gid only with
+           SCHED_USER_IDENTITY), so every other field is leftover stack/heap
+           content. The pasted values are the heap-poison pattern 0xDEADBEEF.
+Fix:       RESET_BUF(buf) before dispatching to the mountpoint's stat().
+           A single line that protects every filesystem, present and future,
+           rather than patching binfs alone.
+Upstream:  YES. A plain uninitialised-memory bug with a one-line fix; a
+           reproducer is `mount -t binfs /bin; ls -l /bin` on any config with
+           BUILTIN + FS_BINFS (e.g. sim:nsh). Check master first: binfs_stat
+           may have been fixed there already.
+
+Apply: git -C ../nuttx apply ../vaporOS/patches/nuttx/vfs-stat-zero-mountpoint.patch   (setup.sh does this)
+
+diff --git a/fs/vfs/fs_stat.c b/fs/vfs/fs_stat.c
+index 7e4a29ac79..cec4bf0e1b 100644
+--- a/fs/vfs/fs_stat.c
++++ b/fs/vfs/fs_stat.c
+@@ -118,8 +118,12 @@ static int stat_recursive(FAR const char *path,
+ 
+       if (inode->u.i_mops && inode->u.i_mops->stat)
+         {
+-          /* Perform the stat() operation */
++          /* Perform the stat() operation.  Many filesystems fill in only
++           * the fields they know about (binfs sets just the mode and size),
++           * so start from zeros as the pseudo-filesystem path below does.
++           */
+ 
++          RESET_BUF(buf);
+           ret = inode->u.i_mops->stat(inode, desc.relpath, buf);
+         }
+       else
