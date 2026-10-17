@@ -45,18 +45,19 @@ environ-replace           = 4
 kconfig-silent-drop       = 4
 inotify                   = 3
 getdelim-uninit-size      = 2
+shared-globals            = 2
 link-chmod-enosys         = 2
 fork-call                 = 2
 exec-family               = 2
 arg-max-sysconf           = 2
 dot-path-in-fat           = 2
 task-stack-size           = 2
+uninitialised-stat-buffer = 2
 paths-h                   = 1
 has-include-probe         = 1
 utmpx-h                   = 1
 statfs-frsize             = 1
 chroot-call               = 1
-shared-globals            = 1
 app-name-collision        = 1
 regex-disabled            = 1
 st-ino-identity           = 1
@@ -220,4 +221,17 @@ hardcoded-device-path     = 1
     nuttx-apps 13.0), and LIBC_LOCALTIME on sim:nx11 (needs the environment,
     which that base turns off). vbuild.sh now fails when a requested option
     is not honored (tools/vconfig.py verify).
+(1) shared-globals -- the per-task allocation tracker freed the memory behind
+    toybox's function-local user/group name caches (lib/lib.c
+    bufgetpwnamuid/bufgetgrnamgid) when the first command ended, while the
+    static pointers lived on: the next `ls -l` dereferenced freed memory and
+    crashed the simulator. Those caches now use an untracked allocator
+    (vapor_perm_realloc). compat-scan's check was extended to pointer-typed
+    function-local statics.
+(2) uninitialised-stat-buffer -- `ls -l /bin` printed 0xDEADBEEF owners and
+    nonsense dates: NuttX's stat() only zeroed the struct for pseudo-fs nodes
+    and binfs fills just mode/size (patches/nuttx/vfs-stat-zero-mountpoint.
+    patch), and toybox's dirtree_add_node() copied an uninitialised local
+    struct stat when a stat "succeeded" without filling it (now memset).
+    Not a compat-scan check: it is a missing initialisation, not a call.
 

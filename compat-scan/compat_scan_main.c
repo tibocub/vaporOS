@@ -338,13 +338,34 @@ static const char *g_raw_line;
 
 static const char *find_filescope_static(const char *raw)
 {
-  if (strncmp(raw, "static ", 7) != 0 || strchr(raw, '(') != NULL ||
-      strstr(raw, "const ") != NULL || strstr(raw, "inline") != NULL)
+  const char *p = raw;
+  int indented;
+
+  while (*p == ' ' || *p == '\t')
+    {
+      p++;
+    }
+
+  indented = (p != raw);
+  if (strncmp(p, "static ", 7) != 0 || strchr(p, '(') != NULL ||
+      strstr(p, "const ") != NULL || strstr(p, "inline") != NULL)
     {
       return NULL;
     }
 
-  return (strchr(raw, ';') != NULL || strchr(raw, '=') != NULL) ? raw : NULL;
+  /* A function-local static keeps its value between calls just the same, and
+   * is shared by every task. Flag only pointers there (caches, free lists):
+   * those are what go wrong when something frees the memory they point to
+   * (toybox's user/group name caches vs. the per-task allocation tracker),
+   * and it keeps the noise down.
+   */
+
+  if (indented && strchr(p, '*') == NULL)
+    {
+      return NULL;
+    }
+
+  return (strchr(p, ';') != NULL || strchr(p, '=') != NULL) ? raw : NULL;
 }
 
 static const char *match_pattern(const char *line, const struct pattern_s *pat)
