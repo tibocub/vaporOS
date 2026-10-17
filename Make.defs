@@ -1,9 +1,33 @@
+# Only descend into the apps that are actually enabled: an unguarded
+# CONFIGURED_APPS entry gets built even when its CONFIG_ is off, which
+# breaks small targets (e.g. rp2040) that only enable a few of them.
+ifneq ($(CONFIG_VAPOROS_VHELLO),)
 CONFIGURED_APPS += $(APPDIR)/external/vhello
+endif
+ifneq ($(CONFIG_VAPOROS_PORTABLE_WC),)
 CONFIGURED_APPS += $(APPDIR)/external/portable_wc
+endif
+ifneq ($(CONFIG_VAPOROS_VLUA),)
 CONFIGURED_APPS += $(APPDIR)/external/vlua
+endif
+ifneq ($(CONFIG_VAPOROS_PORTABLE_CAT),)
 CONFIGURED_APPS += $(APPDIR)/external/portable_cat
+endif
+ifneq ($(CONFIG_VAPOROS_VTERMTEST),)
 CONFIGURED_APPS += $(APPDIR)/external/vterm
+endif
+ifneq ($(CONFIG_VAPOROS_VTERM_FB),)
 CONFIGURED_APPS += $(APPDIR)/external/vterm_fb
+endif
+ifneq ($(CONFIG_VAPOROS_VAPORSHELL),)
 CONFIGURED_APPS += $(APPDIR)/external/vaporshell
+endif
+ifneq ($(CONFIG_VAPOROS_TOYBOX),)
 CONFIGURED_APPS += $(APPDIR)/external/toybox
+endif
+ifneq ($(CONFIG_VAPOROS_COMPAT_SCAN),)
 CONFIGURED_APPS += $(APPDIR)/external/compat-scan
+endif
+ifneq ($(CONFIG_VAPOROS_VINIT),)
+CONFIGURED_APPS += $(APPDIR)/external/vinit
+endif
