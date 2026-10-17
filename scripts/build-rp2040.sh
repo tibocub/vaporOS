@@ -17,6 +17,8 @@ export PICO_SDK_PATH="${PICO_SDK_PATH:-$TC/pico-sdk}"
 export PATH="${PICOTOOL_DIR:-$TC/picotool/picotool}:${ARM_TOOLCHAIN_BIN:-$(echo $TC/arm-gnu/*/bin)}:$PATH"
 
 [ -f .config ] && make distclean
+source "$DIR/scripts/lib.sh"
+clean_stale_objects
 ./tools/configure.sh waveshare-rp2040-zero:usbnsh
 
 en() { for o in "$@"; do kconfig-tweak --enable "CONFIG_$o"; done; }
@@ -33,6 +35,9 @@ kconfig-tweak --set-val CONFIG_SYSLOG_MAX_CHANNELS 2
 kconfig-tweak --set-str CONFIG_SYSLOG_DEVPATH /dev/kmsg
 # ps: stack usage
 en STACK_COLORATION
+# top: per-task CPU load
+kconfig-tweak --disable CONFIG_SCHED_CPULOAD_NONE
+en SCHED_CPULOAD SCHED_CPULOAD_SYSCLK
 kconfig-tweak --set-str CONFIG_INIT_ENTRYNAME vinit
 kconfig-tweak --set-val CONFIG_SYSTEM_VI_COLS 80
 kconfig-tweak --set-val CONFIG_SYSTEM_VI_ROWS 24

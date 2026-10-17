@@ -17,6 +17,7 @@ cd nuttx
 
 # Pick up any new app directories / config changes since last build.
 [ -f .config ] && distclean_preserving_lua
+clean_stale_objects
 
 case "$BOARD" in
   nxterm)
@@ -64,6 +65,18 @@ kconfig-tweak --enable CONFIG_INTERPRETERS_LUA
 kconfig-tweak --enable CONFIG_NSH_LIBRARY     # INTERPRETERS_LUA needs this; not auto-selected on every board
 kconfig-tweak --enable CONFIG_SYSTEM_READLINE # nsh_script.c needs this declared
 kconfig-tweak --enable CONFIG_SYSTEM_VI
+
+# Same observability as the RP2040 image: dmesg (RAM log), ps stack usage
+# and top's per-task CPU load.
+kconfig-tweak --enable CONFIG_RAMLOG
+kconfig-tweak --enable CONFIG_RAMLOG_SYSLOG
+kconfig-tweak --set-val CONFIG_RAMLOG_BUFSIZE 2048
+kconfig-tweak --set-val CONFIG_SYSLOG_MAX_CHANNELS 2
+kconfig-tweak --set-str CONFIG_SYSLOG_DEVPATH /dev/kmsg
+kconfig-tweak --enable CONFIG_STACK_COLORATION
+kconfig-tweak --disable CONFIG_SCHED_CPULOAD_NONE
+kconfig-tweak --enable CONFIG_SCHED_CPULOAD
+kconfig-tweak --enable CONFIG_SCHED_CPULOAD_SYSCLK
 kconfig-tweak --enable CONFIG_LIBC_STRERROR
 kconfig-tweak --enable CONFIG_LIBC_LOCALTIME
 kconfig-tweak --enable CONFIG_COVERAGE_NONE

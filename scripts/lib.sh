@@ -34,3 +34,12 @@ distclean_preserving_lua() {
     )
   fi
 }
+
+# `make distclean` leaves the apps' object files behind, so switching between
+# the sim and an ARM target links foreign objects ("file in wrong format").
+# Run from the nuttx directory after distclean.
+clean_stale_objects() {
+  find ../nuttx-apps ../vaporOS ../vaporshell ../vaporOS-coreutils \
+       -name '*.o' -delete 2>/dev/null || true
+  rm -f staging/*.a ../nuttx-apps/libapps.a
+}
