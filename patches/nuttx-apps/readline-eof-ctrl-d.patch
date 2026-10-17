@@ -1,0 +1,28 @@
+vaporOS nuttx-apps patch: readline-eof-ctrl-d
+
+Problem:   Ctrl-D does nothing in readline: control bytes are silently dropped, so
+           an interactive program (the vlua REPL, any shell) has no way to see
+           end-of-file from the keyboard.
+Fix:       Ctrl-D (0x04) on an empty line makes readline return 0 (EOF).
+Upstream:  YES, likely: standard line-discipline behaviour. Make it
+           configurable if maintainers prefer.
+
+diff --git a/system/readline/readline_common.c b/system/readline/readline_common.c
+index 0fd3b9396..302d31208 100644
+--- a/system/readline/readline_common.c
++++ b/system/readline/readline_common.c
+@@ -654,6 +791,14 @@ ssize_t readline_common(FAR struct rl_common_s *vtbl, FAR char *buf,
+             }
+         }
+ 
++      /* vaporOS: Ctrl-D on an empty line is end-of-file */
++
++      else if (ch == 0x04 && nch == 0)
++        {
++          buf[0] = '\0';
++          return 0;
++        }
++
+       /* Check for the beginning of a VT100 escape sequence */
+ 
+       else if (ch == ASCII_ESC)

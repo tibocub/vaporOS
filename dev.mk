@@ -1,47 +1,64 @@
-# vaporOS-nuttx/dev.mk -- build commands. Not "Makefile": that file is
+# vaporOS-nuttx/dev.mk -- build and run commands. Not "Makefile": that file is
 # required as-is by NuttX's own build (apps/external symlinks here).
+#
+# Every command takes BOARD=<name>; the default is the simulator. A board is
+# a directory under boards/ (see boards/README.md), so adding a target never
+# touches this file.
 
-BOARD ?= nsh
+BOARD ?= sim-nsh
 NUTTX := $(abspath ../nuttx)
 
-RUN := bash
-EXT := .sh
-
-.PHONY: build clean run help rp2040 rp2040-build rp2040-flash rp2040-term rp2040-run
+.PHONY: build clean run flash term configure boards show check help \
+        rp2040 rp2040-build rp2040-flash rp2040-term rp2040-run
 
 build:
-	@$(RUN) scripts/build$(EXT) $(BOARD)
+	@bash scripts/vbuild.sh $(BOARD)
+
+# Produce nuttx/.config only (fast); useful to compare or inspect a board.
+configure:
+	@bash scripts/vbuild.sh $(BOARD) --configure-only
 
 clean:
-	@$(RUN) scripts/clean$(EXT)
+	@bash scripts/clean.sh
+
+# flash/term/run are the board's own: the simulator just runs; an RP2040
+# copies a UF2 and opens its serial console.
+flash:
+	@bash tools/vrun.sh $(BOARD) flash
+
+term:
+	@bash tools/vrun.sh $(BOARD) term
 
 run:
-	@"$(NUTTX)/nuttx"
+	@bash tools/vrun.sh $(BOARD) run
 
-# --- Waveshare RP2040-Zero (USB console), see docs/rp2040.md ---
-rp2040-build:
-	@bash scripts/build-rp2040.sh
+boards:
+	@python3 tools/vconfig.py list
 
-rp2040-flash:
-	@bash tools/rp2040-flash.sh
+show:
+	@python3 tools/vconfig.py show $(BOARD)
 
-rp2040-term:
-	@bash tools/rp2040-console.sh
+check:
+	@python3 tools/vconfig.py check
 
-# build + flash + open the terminal, the rp2040 equivalent of `build` then `run`
-rp2040 rp2040-run: rp2040-build rp2040-flash rp2040-term
+# Older RP2040 spellings, kept as aliases.
+rp2040-build: BOARD := rp2040-zero
+rp2040-build: build
+rp2040-flash: BOARD := rp2040-zero
+rp2040-flash: flash
+rp2040-term: BOARD := rp2040-zero
+rp2040-term: term
+rp2040 rp2040-run: BOARD := rp2040-zero
+rp2040 rp2040-run: build run
 
 help:
-	@echo "make -f dev.mk build                    # the nsh board (NuttX's sim:nsh)"
-	@echo "make -f dev.mk build BOARD=vterm_fb"
+	@echo "make -f dev.mk boards                     # list targets"
+	@echo "make -f dev.mk build [BOARD=<name>]       # compile (default: sim-nsh)"
+	@echo "make -f dev.mk run   [BOARD=<name>]       # sim: run it; hardware: flash + console"
+	@echo "make -f dev.mk flash|term [BOARD=<name>]  # the parts of 'run'"
+	@echo "make -f dev.mk show  [BOARD=<name>]       # the resolved configuration, with reasons"
+	@echo "make -f dev.mk configure [BOARD=<name>]   # only produce nuttx/.config"
+	@echo "make -f dev.mk check                      # validate boards/features/hardware"
 	@echo "make -f dev.mk clean"
-	@echo "make -f dev.mk run"
 	@echo
-	@echo "RP2040-Zero:"
-	@echo "make -f dev.mk rp2040-build   # compile"
-	@echo "make -f dev.mk rp2040-flash   # reboot to BOOTSEL + copy the UF2"
-	@echo "make -f dev.mk rp2040-term    # open the vaporshell console"
-	@echo "make -f dev.mk rp2040         # all three"
-	@echo
-	@echo "The board is BOARD=..., not a goal: an extra goal such as sim:nsh makes"
-	@echo "make exit with an error after the build has finished."
+	@echo "Boards: sim-nsh sim-nxterm sim-vterm_fb rp2040-zero (aliases: nsh nxterm vterm_fb rp2040)"

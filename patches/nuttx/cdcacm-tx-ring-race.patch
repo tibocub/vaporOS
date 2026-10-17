@@ -1,0 +1,53 @@
+vaporOS NuttX patch: cdcacm-tx-ring-race
+
+Problem:   The USB CDC-ACM console hangs under bursts of output (a tab-completion
+           list, vi's screen paint): output stops mid-stream and input is never
+           answered again; only a replug recovers.
+Evidence:  Reproduced every time by `vi <file>` (a screen paint of ~800 bytes in
+           many small writes). The same paint completes, and the editor works,
+           with this change. cdcacm_sndpacket() ends in
+           uart_xmitchars_dma(), which fills a request from the TX ring and then
+           advances the ring tail. It is called both from the writing thread
+           (cdcuart_txint, via uart_write) and from the bulk-IN completion
+           interrupt (cdcacm_wrcomplete). MECHANISM (read from the code, not confirmed
+           by tracing): an interrupt arriving inside the
+           thread's call re-ran the setup from the same, not-yet-advanced
+           tail: two requests consumed the same bytes and the tail was
+           advanced twice, corrupting the ring and wedging TX.
+Fix:       run the `txfree` test and uart_xmitchars_dma() inside a critical
+           section.
+Upstream:  YES, likely. It is a plain reentrancy bug in the generic CDC-ACM
+           driver (not RP2040 specific; affects any board with CDCACM and TX DMA
+           mode). Needs a minimal reproducer that does not need vaporOS (a
+           loop of small writes to /dev/ttyACM0 on any board) and a check
+           of whether upstream NuttX master still has the window; also consider
+           a spinlock rather than a global critical section.
+
+Apply: git -C ../nuttx apply ../vaporOS/patches/nuttx/cdcacm-tx-ring-race.patch   (setup.sh does this)
+
+diff --git a/drivers/usbdev/cdcacm.c b/drivers/usbdev/cdcacm.c
+index 5b003218fb..44ec338519 100644
+--- a/drivers/usbdev/cdcacm.c
++++ b/drivers/usbdev/cdcacm.c
+@@ -485,10 +485,21 @@ static int cdcacm_sndpacket(FAR struct cdcacm_dev_s *priv)
+ 
+   spin_unlock_irqrestore_nopreempt(&priv->lock, flags);
+ #else
++  /* vaporOS: this runs both from a writing thread (txint) and from the
++   * bulk-IN completion interrupt.  Setting up the DMA transfer from the TX
++   * ring is not reentrant: an interrupt in the middle made two requests
++   * consume (and advance past) the same bytes, corrupting the ring and
++   * stalling the console under bursts of output.
++   */
++
++  irqstate_t txflags = enter_critical_section();
++
+   if (!sq_empty(&priv->txfree))
+     {
+       uart_xmitchars_dma(&priv->serdev);
+     }
++
++  leave_critical_section(txflags);
+ #endif
+ 
+ out:

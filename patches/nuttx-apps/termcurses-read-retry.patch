@@ -1,3 +1,16 @@
+vaporOS nuttx-apps patch: termcurses-read-retry
+
+Problem:   termcurses_getkeycode() returns -1 when read() returns no data (a
+           non-blocking fd, or VMIN=0), and callers (vi) retry immediately.
+Evidence:  vi hung the USB console. CAUTION: the real cause of that hang
+           was the CDC-ACM race (nuttx/cdcacm-tx-ring-race.patch). Tasks here are
+           round-robin (SCHED_RR), so a spinning vi should not starve the others; this patch
+           was a wrong guess that happens to be harmless. It is kept only because
+           an empty-read busy loop is bad on its own.
+Fix:       sleep 10 ms and retry on EAGAIN/EINTR/0-byte reads.
+Upstream:  NO as is. Needs a demonstrated failure first; otherwise drop this
+           patch.
+
 diff --git a/system/termcurses/tcurses_vt100.c b/system/termcurses/tcurses_vt100.c
 index ac4685a4e..20dca13ca 100644
 --- a/system/termcurses/tcurses_vt100.c

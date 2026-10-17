@@ -1,0 +1,183 @@
+vaporOS NuttX patch: rp2040-usbdev-w1c-and-watchdog
+
+Problem:   Possible lost USB transfer completions on the RP2040 device driver.
+Evidence:  (1) The datasheet marks BUFF_STATUS and SIE_STATUS as write-1-to-clear
+           registers; the driver cleared them with a read-modify-write
+           (clrbits_reg32), which writes 1s back for every OTHER bit that was
+           set at the read, discarding those events. That is wrong by
+           construction. (2) The poll is a defensive net for exactly that
+           class of loss.
+           HONESTY: this was found while chasing a console wedge whose actual
+           cause was the CDC-ACM race (cdcacm-tx-ring-race.patch). Neither
+           change in this patch was shown on its own to fix anything.
+Fix:       (1) clear status bits with a plain write of just the handled bit.
+           (2) A 10 ms wdog tick: if a bulk endpoint's head request is `armed` but
+           the controller has already cleared AVAILABLE and no BUFF_STATUS
+           bit is pending, complete it; if the head request was never armed,
+           arm it.
+Upstream:  (1) YES, once re-verified against the datasheet by a second pair of eyes;
+           it is obviously correct. (2) NO as is: it is a workaround that can hide
+           real bugs. Drop it, and re-test the console under load, before upstreaming.
+
+Apply: git -C ../nuttx apply ../vaporOS/patches/nuttx/rp2040-usbdev-w1c-and-watchdog.patch   (setup.sh does this)
+
+diff --git a/arch/arm/src/rp2040/rp2040_usbdev.c b/arch/arm/src/rp2040/rp2040_usbdev.c
+index ee44f05182..c227be4726 100644
+--- a/arch/arm/src/rp2040/rp2040_usbdev.c
++++ b/arch/arm/src/rp2040/rp2040_usbdev.c
+@@ -37,6 +37,7 @@
+ 
+ #include <nuttx/arch.h>
+ #include <nuttx/spinlock.h>
++#include <nuttx/wdog.h>
+ #include <nuttx/kmalloc.h>
+ #include <arch/barriers.h>
+ #include <nuttx/usb/usb.h>
+@@ -270,6 +271,7 @@ struct rp2040_usbdev_s
+   uint16_t next_offset;       /* Unused DPSRAM buffer offset */
+   uint8_t  dev_addr;          /* USB device address */
+   spinlock_t lock;            /* USB device address */
++  struct wdog_s pollwd;       /* Bulk endpoint stall watchdog */
+   enum rp2040_zlp_e zlp_stat; /* Pending EP0 ZLP status */
+   uint16_t used;              /* used epphy */
+   bool stalled;
+@@ -341,6 +343,7 @@ static void rp2040_usbintr_ep0out(struct rp2040_usbdev_s *priv,
+ static bool rp2040_usbintr_buffstat(struct rp2040_usbdev_s *priv);
+ static void rp2040_usbintr_busreset(struct rp2040_usbdev_s *priv);
+ static int rp2040_usbinterrupt(int irq, void *context, void *arg);
++static void rp2040_poll(wdparm_t arg);
+ 
+ /* Endpoint methods */
+ 
+@@ -1392,7 +1395,13 @@ static bool rp2040_usbintr_buffstat(struct rp2040_usbdev_s *priv)
+     {
+       if (stat & bit)
+         {
+-          clrbits_reg32(bit, RP2040_USBCTRL_REGS_BUFF_STATUS);
++          /* Write-1-to-clear: a read-modify-write here would also clear the
++           * completion bits of other endpoints latched since the read above,
++           * losing them (IN and OUT traffic at the same time wedged the
++           * CDC-ACM console).
++           */
++
++          putreg32(bit, RP2040_USBCTRL_REGS_BUFF_STATUS);
+           privep = &priv->eplist[RP2040_DPTOEP(i)];
+ 
+           if (i == 1)
+@@ -1473,8 +1482,82 @@ static void rp2040_usbintr_busreset(struct rp2040_usbdev_s *priv)
+       CLASS_DISCONNECT(priv->driver, &priv->usbdev);
+     }
+ 
+-  clrbits_reg32(RP2040_USBCTRL_REGS_SIE_STATUS_BUS_RESET,
+-                RP2040_USBCTRL_REGS_SIE_STATUS);
++  putreg32(RP2040_USBCTRL_REGS_SIE_STATUS_BUS_RESET, RP2040_USBCTRL_REGS_SIE_STATUS);
++}
++
++/****************************************************************************
++ * Name: rp2040_poll
++ *
++ * Description:
++ *   Safety net for the bulk endpoints, run every tick.  If a request is
++ *   marked armed but the controller has already finished with its buffer
++ *   (AVAILABLE cleared) and no BUFF_STATUS bit is pending, the completion
++ *   was lost and the endpoint would NAK forever -- process it here.  A head
++ *   request that was never armed (a lost re-arm) is armed as well.
++ *
++ ****************************************************************************/
++
++static void rp2040_poll(wdparm_t arg)
++{
++  struct rp2040_usbdev_s *priv = (struct rp2040_usbdev_s *)arg;
++  irqstate_t flags;
++  uint32_t stat;
++  int k;
++
++  flags = enter_critical_section();
++  stat  = getreg32(RP2040_USBCTRL_REGS_BUFF_STATUS);
++
++  for (k = 2; k < RP2040_NENDPOINTS; k++)
++    {
++      struct rp2040_ep_s *privep = &priv->eplist[k];
++      struct rp2040_req_s *head;
++      uint32_t bit;
++
++      if (privep->data_buf == NULL || privep->stalled ||
++          privep->pending_stall)
++        {
++          continue;
++        }
++
++      head = rp2040_rqpeek(privep);
++      if (head == NULL)
++        {
++          continue;
++        }
++
++      bit = 1u << ((k - 1) * 2 + (privep->in ? 0 : 1));
++      if ((stat & bit) != 0)
++        {
++          continue;                 /* the interrupt will handle it */
++        }
++
++      if (!head->armed)
++        {
++          if (privep->in)
++            {
++              rp2040_wrrequest(privep);
++            }
++          else
++            {
++              rp2040_rdrequest(privep);
++            }
++        }
++      else if ((getreg32(privep->buf_ctrl) &
++                RP2040_USBCTRL_DPSRAM_EP_BUFF_CTRL_AVAIL) == 0)
++        {
++          if (privep->in)
++            {
++              rp2040_txcomplete(privep);
++            }
++          else
++            {
++              rp2040_rxcomplete(privep);
++            }
++        }
++    }
++
++  leave_critical_section(flags);
++  wd_start(&priv->pollwd, MSEC2TICK(10), rp2040_poll, arg);
+ }
+ 
+ /****************************************************************************
+@@ -1502,16 +1585,14 @@ static int rp2040_usbinterrupt(int irq, void *context, void *arg)
+ 
+   if (stat & RP2040_USBCTRL_REGS_INTR_SETUP_REQ)
+     {
+-      clrbits_reg32(RP2040_USBCTRL_REGS_SIE_STATUS_SETUP_REC,
+-                    RP2040_USBCTRL_REGS_SIE_STATUS);
++      putreg32(RP2040_USBCTRL_REGS_SIE_STATUS_SETUP_REC, RP2040_USBCTRL_REGS_SIE_STATUS);
+ 
+       rp2040_usbintr_setup(priv);
+     }
+ 
+   if (stat & RP2040_USBCTRL_REGS_INTR_BUS_RESET)
+     {
+-      clrbits_reg32(RP2040_USBCTRL_REGS_SIE_STATUS_BUS_RESET,
+-                    RP2040_USBCTRL_REGS_SIE_STATUS);
++      putreg32(RP2040_USBCTRL_REGS_SIE_STATUS_BUS_RESET, RP2040_USBCTRL_REGS_SIE_STATUS);
+ 
+       rp2040_usbintr_busreset(priv);
+     }
+@@ -2112,9 +2193,12 @@ static int rp2040_pullup(struct usbdev_s *dev, bool enable)
+     {
+       setbits_reg32(RP2040_USBCTRL_REGS_SIE_CTRL_PULLUP_EN,
+                     RP2040_USBCTRL_REGS_SIE_CTRL);
++      wd_start(&g_usbdev.pollwd, MSEC2TICK(10), rp2040_poll,
++               (wdparm_t)&g_usbdev);
+     }
+   else
+     {
++      wd_cancel(&g_usbdev.pollwd);
+       clrbits_reg32(RP2040_USBCTRL_REGS_SIE_CTRL_PULLUP_EN,
+                     RP2040_USBCTRL_REGS_SIE_CTRL);
+     }

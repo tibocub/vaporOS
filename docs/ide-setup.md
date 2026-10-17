@@ -12,7 +12,7 @@ working setup -- confirmed directly, not guessed.
 
 ## One-time setup
 
-1. Build normally first (`make -f dev.mk build sim:nsh`, or whichever
+1. Build normally first (`make -f dev.mk build`, or whichever
    board) -- this needs a real, working `nuttx/.config` to already
    exist.
 2. From this repo (`vaporOS-nuttx/`), run:

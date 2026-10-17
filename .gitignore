@@ -13,3 +13,5 @@
 */**/*.gcno
 */*.gcda
 */**/*.gcda
+__pycache__/
+*.pyc

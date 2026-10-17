@@ -26,34 +26,11 @@ if [ ! -d nuttx-apps ]; then
   # releases/13.0, confirmed directly).
   git -C nuttx-apps checkout "releases/13.0"
 
-  # readline-history-ctrlpn.patch (below) does NOT apply here: it was
-  # written against a much newer nuttx-apps commit than
-  # releases/13.0's own readline_common.c, which is a substantially
-  # more primitive implementation -- confirmed directly,
-  # CONFIG_READLINE_EDIT_EMACS (the emacs-style editing
-  # infrastructure the patch's own Ctrl+P/Ctrl+N navigation depends
-  # on) doesn't exist anywhere in this version at all, not just a
-  # different line number for the same feature. Re-porting the
-  # history-persistence/navigation feature onto this real,
-  # structurally different base is real, separate work, not done yet
-  # -- applying with || true and a clear warning here rather than
-  # letting one optional, non-blocking feature patch halt this whole
-  # script.
-  git -C nuttx-apps apply "$DIR/patches/nuttx-apps/readline-history-ctrlpn.patch" \
-    || echo "WARNING: readline-history-ctrlpn.patch did not apply (a known," \
-            "real gap against releases/13.0 -- see this script's own comment" \
-            "above). vaporshell/NSH readline itself still works fine without" \
-            "it; only history persistence/Ctrl+P/Ctrl+N navigation are missing."
-
-  # Tab-completion hook (readline_completer()) used by vaporshell on NuttX.
-  git -C nuttx-apps apply "$DIR/patches/nuttx-apps/readline-completer-hook.patch" \
-    || echo "WARNING: readline-completer-hook.patch did not apply; vaporshell" \
-            "tab completion will not build on NuttX."
-
-  # termcurses (vi): a "no data" key read must wait, not spin.
-  git -C nuttx-apps apply "$DIR/patches/nuttx-apps/termcurses-read-retry.patch" \
-    || echo "WARNING: termcurses-read-retry.patch did not apply; vi may" \
-            "busy-loop on the USB console."
+  # readline-history-ctrlpn.patch does NOT apply to releases/13.0: it was
+  # written against a much newer nuttx-apps, whose readline_common.c has
+  # CONFIG_READLINE_EDIT_EMACS (the infrastructure its Ctrl+P/Ctrl+N navigation
+  # depends on); here that option does not exist at all. Re-porting it is
+  # separate work, so tools/apply-patches.sh skips it.
 fi
 
 # vaporOS-coreutils and vaporshell: both split into their own repos
@@ -67,6 +44,9 @@ fi
 if [ ! -d vaporshell ]; then
   git clone https://github.com/tibocub/vaporshell.git
 fi
+
+# vaporOS's changes to NuttX itself (see patches/UPSTREAM.md); idempotent.
+"$DIR/tools/apply-patches.sh" || echo "WARNING: some patches did not apply" >&2
 
 [ -e nuttx-apps/external ] || ln -s "$DIR" nuttx-apps/external
 [ -e "$DIR/toybox" ] || ln -s ../vaporOS-coreutils "$DIR/toybox"

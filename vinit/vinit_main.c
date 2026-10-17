@@ -1,6 +1,12 @@
-/* vinit -- vaporOS init for USB-console boards. Does what NSH's
- * nsh_usbconsole.c does (connect CDC/ACM, wait for the host, dup2 onto
- * stdio) but runs vaporshell instead of an NSH session.
+/* vinit -- vaporOS init for boards that boot straight into vaporshell. Does
+ * what NSH's nsh_usbconsole.c does (connect CDC/ACM, wait for the host, dup2
+ * onto stdio) but runs vaporshell instead of an NSH session.
+ *
+ * The console is configured by the board (hardware/console/*.conf):
+ *   VAPOROS_VINIT_TTY        the device node
+ *   VAPOROS_VINIT_CDCACM     bring up the USB gadget first (USB console)
+ *   VAPOROS_VINIT_WAIT_HOST  wait for three Enters (USB: a terminal must
+ *                            attach; a UART is always "attached")
  */
 
 #include <nuttx/config.h>
@@ -16,7 +22,9 @@
 #include <stdio.h>
 #include <unistd.h>
 
-#include <nuttx/usb/cdcacm.h>
+#ifdef CONFIG_VAPOROS_VINIT_CDCACM
+#  include <nuttx/usb/cdcacm.h>
+#endif
 
 extern char **environ;
 
@@ -37,6 +45,10 @@ static int wait_for_host(void)
         {
           sleep(2);          /* ENOTCONN until the host enumerates us */
         }
+
+#ifndef CONFIG_VAPOROS_VINIT_WAIT_HOST
+      return fd;
+#endif
 
       nlc = 0;
       while (nlc < 3)
@@ -60,20 +72,24 @@ static int wait_for_host(void)
 
 int main(int argc, FAR char *argv[])
 {
+#ifdef CONFIG_VAPOROS_VINIT_CDCACM
   struct boardioc_usbdev_ctrl_s ctrl;
   FAR void *handle;
+#endif
   char *sh_argv[] = { CONFIG_VAPOROS_VINIT_SHELL, NULL };
   pid_t pid;
   int fd;
 
-#if defined(CONFIG_CDCACM) && !defined(CONFIG_USBDEV_COMPOSITE)
+#ifdef CONFIG_VAPOROS_VINIT_CDCACM
+#  ifdef CONFIG_USBDEV_COMPOSITE
+#    error "vinit supports a plain CDC/ACM console only, not a composite device"
+#  endif
+
   ctrl.usbdev   = BOARDIOC_USBDEV_CDCACM;
   ctrl.action   = BOARDIOC_USBDEV_CONNECT;
   ctrl.instance = 0;
   ctrl.handle   = &handle;
   boardctl(BOARDIOC_USBDEV_CONTROL, (uintptr_t)&ctrl);
-#else
-#  error "vinit currently supports a plain CDC/ACM console only"
 #endif
 
   /* Expose the builtin apps as /bin/<name>; vaporshell finds commands there */

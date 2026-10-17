@@ -27,11 +27,11 @@
 #   and vaporOS-nuttx/'s own apps needs its object files gone too, not
 #   just nuttx/'s own, for a truly complete capture.
 #
-# Deliberately not going through scripts/build.sh's own distclean
+# Deliberately not going through scripts/vbuild.sh's own distclean
 # step for this: that's the right call for a real, from-scratch
 # build, but heavier than needed here, when the goal is just "recompile
 # everything under the config that's already working" -- and
-# confirmed directly, running this via build.sh's own distclean can
+# confirmed directly, running this via vbuild.sh's own distclean can
 # stall in some environments where the apps/external symlink
 # structure isn't exactly what it expects (a difference in the
 # sandbox used to write this script, not this project's own fault --
@@ -61,7 +61,7 @@ fi
 
 if [ ! -f nuttx/.config ]; then
   echo "nuttx/.config missing -- run a real build first" >&2
-  echo "('make -f dev.mk build sim:nsh' in $DIR), then retry." >&2
+  echo "('make -f dev.mk build' in $DIR), then retry." >&2
   exit 1
 fi
 

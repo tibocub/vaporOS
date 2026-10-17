@@ -124,8 +124,10 @@ enum match_kind_e
                        * (e.g. one already explaining why it's absent) */
   MATCH_PREFIX_CALL, /* any whole identifier *starting with* this prefix,
                        * followed by '(' -- for pthread_* as a family */
-  MATCH_ENVIRON_ASSIGN /* special-cased: whole word "environ" followed by
+  MATCH_ENVIRON_ASSIGN, /* special-cased: whole word "environ" followed by
                          * '=' but not "==" */
+  MATCH_FILESCOPE_STATIC /* special-cased: a mutable file-scope "static"
+                          * variable (see find_filescope_static()) */
 };
 
 struct pattern_s
@@ -317,6 +319,34 @@ static const char *find_include(const char *line, const char *header)
   return strstr(p + 7, header);
 }
 
+/* The line as read, before leading whitespace was trimmed -- the one check
+ * that needs to know whether a declaration starts in column 0 (file scope).
+ */
+
+static const char *g_raw_line;
+
+/* "static <type> name;" or "static <type> name = ..." starting in column 0:
+ * file-scope mutable state. Skips functions and function-pointer variables
+ * (anything with a '('), const tables, and static inline.
+ *
+ * Why it matters: vaporOS runs in one address space, so every task of the same
+ * program shares these. A Unix program gets a private copy per process; here two
+ * concurrent instances (the stages of a pipeline) corrupt each other. toybox
+ * needed a per-task context for exactly this (vaporOS-coreutils/nuttx-shims/
+ * vapor_ctx.h).
+ */
+
+static const char *find_filescope_static(const char *raw)
+{
+  if (strncmp(raw, "static ", 7) != 0 || strchr(raw, '(') != NULL ||
+      strstr(raw, "const ") != NULL || strstr(raw, "inline") != NULL)
+    {
+      return NULL;
+    }
+
+  return (strchr(raw, ';') != NULL || strchr(raw, '=') != NULL) ? raw : NULL;
+}
+
 static const char *match_pattern(const char *line, const struct pattern_s *pat)
 {
   switch (pat->kind)
@@ -333,6 +363,8 @@ static const char *match_pattern(const char *line, const struct pattern_s *pat)
         return find_prefix_call(line, pat->text);
       case MATCH_ENVIRON_ASSIGN:
         return find_environ_assign(line);
+      case MATCH_FILESCOPE_STATIC:
+        return find_filescope_static(g_raw_line);
       default:
         return NULL;
     }
@@ -551,6 +583,59 @@ static const struct pattern_s pat_mmap[] =
   { NULL, 0 }
 };
 
+static const struct pattern_s pat_filescopestatic[] =
+{
+  { "", MATCH_FILESCOPE_STATIC },
+  { NULL, 0 }
+};
+
+static const struct pattern_s pat_underscoreexit[] =
+{
+  { "_exit", MATCH_CALL },
+  { "_Exit", MATCH_CALL },
+  { "atexit", MATCH_CALL },
+  { NULL, 0 }
+};
+
+static const struct pattern_s pat_devpaths[] =
+{
+  { "\"/dev/tty", MATCH_SUBSTRING },
+  { "\"/dev/mmcblk", MATCH_SUBSTRING },
+  { "\"/dev/sd", MATCH_SUBSTRING },
+  { "\"/dev/fb", MATCH_SUBSTRING },
+  { "\"/dev/input", MATCH_SUBSTRING },
+  { "\"/dev/mem", MATCH_SUBSTRING },
+  { "\"/dev/i2c", MATCH_SUBSTRING },
+  { "\"/dev/spidev", MATCH_SUBSTRING },
+  { "\"/dev/gpio", MATCH_SUBSTRING },
+  { "\"/dev/snd", MATCH_SUBSTRING },
+  { NULL, 0 }
+};
+
+static const struct pattern_s pat_linuxfs[] =
+{
+  { "\"/sys/", MATCH_SUBSTRING },
+  { "\"/proc/self", MATCH_SUBSTRING },
+  { "\"/proc/cpuinfo", MATCH_SUBSTRING },
+  { "\"/proc/stat", MATCH_SUBSTRING },
+  { "\"/proc/net", MATCH_SUBSTRING },
+  { "\"/proc/sys", MATCH_SUBSTRING },
+  { NULL, 0 }
+};
+
+static const struct pattern_s pat_winsize[] =
+{
+  { "TIOCGWINSZ", MATCH_IDENT },
+  { NULL, 0 }
+};
+
+static const struct pattern_s pat_alloca[] =
+{
+  { "alloca", MATCH_CALL },
+  { "__builtin_alloca", MATCH_CALL },
+  { NULL, 0 }
+};
+
 static const struct check_s CHECKS[] =
 {
   {
@@ -759,6 +844,71 @@ static const struct check_s CHECKS[] =
     pat_dlopen
   },
   {
+    "shared-globals", SEV_REVIEW,
+    "A mutable file-scope static is shared by every task running this "
+    "program, because NuttX's flat build has one address space (a Unix "
+    "process would get its own copy). Harmless for a program that only "
+    "ever runs one instance at a time; corrupts state when two run "
+    "concurrently -- the stages of a pipeline, or several tbx applets. "
+    "toybox needed a per-task context for exactly this (vaporOS-"
+    "coreutils/nuttx-shims/vapor_ctx.h); expect false positives for "
+    "genuinely read-only tables.",
+    pat_filescopestatic
+  },
+  {
+    "underscore-exit", SEV_REVIEW,
+    "On NuttX _exit() (and _Exit) skips the cleanup exit() performs: "
+    "atexit handlers, stdio flush, and the task-local-storage "
+    "destructors. toybox ends every command with _exit(), which leaked "
+    "its whole per-task context (~12 KB) on each command until it was "
+    "routed through vapor_task_exit(). Related: code that leaves its "
+    "allocations for the OS to reclaim at process exit leaks here, since "
+    "tasks share one heap -- vaporOS-coreutils tracks and frees a tbx "
+    "task's allocations at exit (vapor_entry.c). A 264 KB RP2040 ran out "
+    "of RAM after a few dozen commands before that fix.",
+    pat_underscoreexit
+  },
+  {
+    "hardcoded-device-path", SEV_REVIEW,
+    "Device nodes are defined by the board on NuttX, not by convention: "
+    "/dev/ttyACM0 exists only with a CDC-ACM console, /dev/ttyS* are "
+    "UARTs numbered by the board, an SD card appears as /dev/mmcsd0 "
+    "(there is no /dev/sd*), /dev/fb0 only with a framebuffer. Take "
+    "such paths from configuration -- vaporOS's console, for example, "
+    "comes from the board's hardware descriptor (CONFIG_VAPOROS_VINIT_"
+    "TTY, hardware/console/*.conf) -- so a user with different wiring "
+    "can change it without editing code.",
+    pat_devpaths
+  },
+  {
+    "linux-sysfs-procfs", SEV_REVIEW,
+    "Linux-specific /sys and /proc layouts. NuttX has no /sys; its "
+    "/proc is different (per-task directories, /proc/meminfo, "
+    "/proc/uptime, /proc/fs/*), so a file that exists on Linux may be "
+    "absent or formatted differently. vaporOS-coreutils' free, df, ps, "
+    "top and uptime are written against NuttX's procfs.",
+    pat_linuxfs
+  },
+  {
+    "tty-winsize-query", SEV_REVIEW,
+    "A serial or USB-CDC console cannot answer ioctl(TIOCGWINSZ). "
+    "NuttX's vi and termcurses fall back to asking the terminal with "
+    "ESC[6n and, if it does not answer, to a build-time size "
+    "(CONFIG_SYSTEM_VI_COLS/ROWS). Programs should fall back to "
+    "$COLUMNS/$LINES or 80x24 rather than treat failure as fatal.",
+    pat_winsize
+  },
+  {
+    "alloca-stack", SEV_REVIEW,
+    "Task stacks are small and fixed (2 KB NuttX default; vaporshell "
+    "needed 16 KB and each toybox applet 8 KB). NuttX keeps the "
+    "task-local-storage block at the BOTTOM of a task's stack, so an "
+    "overflow does not fault: it shows up later as a garbage pointer far "
+    "from the cause (a crash in verror_msg via vapor_ctx()). Check the "
+    "stack budget of anything that allocates on the stack.",
+    pat_alloca
+  },
+  {
     "pthread-usage", SEV_INFO,
     "Real pthread support (96 real implementation files, not stubs) "
     "-- not a gap, just noted for context.",
@@ -894,6 +1044,7 @@ static void scan_file(const char *path)
 
       lineno++;
       strip_trailing_newline(line);
+      g_raw_line = line;
 
       for (i = 0; i < NUM_CHECKS; i++)
         {

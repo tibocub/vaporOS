@@ -8,8 +8,8 @@
 ```
 
 > A tiny, hackable operating system, aiming for ARM/RISC-V/x86 devices such as
-Raspberry Pis and ESP32s. Currently runs on NuttX's own simulator only --
-no real hardware target is wired up yet.
+Raspberry Pis and ESP32s. Runs on NuttX's simulator and on a real board, the
+Waveshare RP2040-Zero (2 MB flash, USB console only).
 
 VaporOS is an experimental project that aims to build a tiny operating environment for
 ARM/RISC-V/x86 devices such as raspberry pis, esp32, etc. Inspired by retro computers,
@@ -20,6 +20,11 @@ Experimental vaporOS foundation built on [Apache NuttX](https://nuttx.apache.org
 ---
 
 ## STATUS
+
+Targets (`make -f dev.mk boards`): `sim-nsh` (default), `sim-nxterm`, `sim-vterm_fb` and
+`rp2040-zero`. On the RP2040-Zero vaporOS boots straight into vaporshell over USB
+(no NSH) with Tab completion, vi, Lua (`vlua` REPL), `ps`/`top`/`free`/`df`/`dmesg`, and
+a flash filesystem that survives reflashing -- see docs/rp2040.md.
 
 Custom graphical terminal implemented (vterm/vterm_fb) - NSH runs on a real NuttX pty, with live keyboard input and echo working. Input is still only read from the terminal vaporOS was launched from, not the graphical window itself (that's forwarded through, not yet captured directly).
 Basic custom Lua implementation with the vapor API activated by default (just tests for now, no real interresting API features currently)
@@ -207,15 +212,29 @@ avoiding bash somewhere in the chain either way.
 
 ```
 ./setup.sh          # clones nuttx+apps+vaporOS-coreutils, wires them
-                     # all in as siblings (see LAYOUT below)
+                     # all in as siblings (see LAYOUT below), applies patches/
 make -f dev.mk build
-../nuttx/nuttx
+make -f dev.mk run
 ```
 
-boots into a real NSH shell, entirely on your machine, no board required.
+boots into a real NSH shell, entirely on your machine, no board required
+(`vaporshell` starts from it).
 
-`make -f dev.mk build BOARD=vterm_fb` builds vaporterm, the custom
-graphical terminal described in STATUS above (needs an X server).
+Every target is a directory under `boards/`; pick one with `BOARD=`:
+
+```
+make -f dev.mk boards                    # list targets
+make -f dev.mk build BOARD=vterm_fb      # vaporterm, the custom graphical terminal (needs X)
+make -f dev.mk run   BOARD=rp2040        # build first; then flash a RP2040-Zero and open its USB console
+make -f dev.mk show  BOARD=rp2040        # the full resolved configuration, with the reason for each option
+```
+
+A board is a small declarative file naming a NuttX base configuration, the software
+`features/` it includes and the `hardware/` it is wired with (console, storage, pins).
+Supporting your own device is mostly editing that file, not code: see
+[boards/README.md](boards/README.md), [hardware/README.md](hardware/README.md) and
+[docs/porting-a-new-board.md](docs/porting-a-new-board.md). Our changes to NuttX
+itself, and why we made them, are in [patches/UPSTREAM.md](patches/UPSTREAM.md).
 `make -f dev.mk help` lists every command.
 
 ---
@@ -297,7 +316,20 @@ vaporOS-nuttx/
                 with the code -- see vaporshell/docs/design.md.)
 
   setup.sh      clones nuttx+apps+vaporOS-coreutils+vaporshell, wires them
-                all in, compile
+                all in and applies patches/
+
+  boards/       one directory per target (board.conf): the NuttX base config,
+                features, hardware wiring, host toolchain, how to flash/run.
+  features/     reusable software bundles (base, lua, vi, ...) as NuttX options,
+                each option with its rationale
+  hardware/     parameterised peripheral descriptors (consoles, storage, display,
+                ...): pins, buses and paths are parameters, not code
+  local/        your own per-board overrides (untracked)
+  patches/      our changes to NuttX/nuttx-apps, one per concern, with the
+                reasoning and upstream status (UPSTREAM.md)
+  tools/        vconfig.py (resolves boards), apply-patches.sh, runners/ (flash and
+                console per target), RP2040 helpers
+  vinit/        init for boards without NSH: console bring-up, then vaporshell
 
   Makefile      required by NuttX's app-directory convention
                 (delegates to apps/Directory.mk)

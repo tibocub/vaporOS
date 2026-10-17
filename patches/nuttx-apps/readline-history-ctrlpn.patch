@@ -1,3 +1,9 @@
+vaporOS nuttx-apps patch: readline-history-ctrlpn
+
+Persistent command history and Ctrl-P/Ctrl-N navigation for readline.
+STATUS: written against an older nuttx-apps and does NOT apply to releases/13.0
+(setup.sh warns and carries on). Needs re-porting; see setup.sh.
+
 diff --git a/include/system/readline.h b/include/system/readline.h
 index 8f40c92c1..bf1c0ed84 100644
 --- a/include/system/readline.h

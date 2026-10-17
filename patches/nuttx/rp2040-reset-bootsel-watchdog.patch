@@ -1,0 +1,69 @@
+vaporOS NuttX patch: rp2040-reset-bootsel-watchdog
+
+Problem:   board_reset() could not reboot the RP2040 reliably, and could not
+           enter the USB bootloader, so every flash needed a physical replug.
+Evidence:  A core-only reset (SYSRESETREQ) leaves the flash in XIP-disabled
+           state after the second-stage bootloader has run once; the chip then
+           falls into BOOTSEL instead of rebooting the application.
+Fix:       board_reset(1) calls the bootrom's reset_usb_boot() (found through the
+           ROM function table, 'UB'), which gives `reboot 1` -> BOOTSEL for
+           hands-free flashing (tools/rp2040-flash.sh). Any other value does a full-chip
+           watchdog reset (PSM_WDSEL + WATCHDOG_CTRL trigger) which restarts cleanly.
+Upstream:  PROBABLY, after discussion. The watchdog reset is a plain bug fix.
+           Reusing the reset value 1 for "enter BOOTSEL" is a convention
+           choice NuttX maintainers may want expressed differently
+           (e.g. a dedicated boardctl reset mode).
+
+Apply: git -C ../nuttx apply ../vaporOS/patches/nuttx/rp2040-reset-bootsel-watchdog.patch   (setup.sh does this)
+
+diff --git a/boards/arm/rp2040/common/src/rp2040_reset.c b/boards/arm/rp2040/common/src/rp2040_reset.c
+index e59d2d65d9..02cc726dc7 100644
+--- a/boards/arm/rp2040/common/src/rp2040_reset.c
++++ b/boards/arm/rp2040/common/src/rp2040_reset.c
+@@ -27,6 +27,8 @@
+ #include <nuttx/config.h>
+ #include <nuttx/board.h>
+ #include <nuttx/arch.h>
++#include <stdint.h>
++#include <arch/irq.h>
+ 
+ #ifdef CONFIG_BOARDCTL_RESET
+ 
+@@ -56,7 +58,36 @@
+ 
+ int board_reset(int status)
+ {
+-  up_systemreset();
++  /* vaporOS: "reboot 1" drops into the ROM USB bootloader (BOOTSEL), so
++   * the board can be reflashed without touching the BOOT button.
++   */
++
++  if (status == 1)
++    {
++      typedef void *(*rom_lookup_t)(uint16_t *table, uint32_t code);
++      typedef void (*reset_usb_boot_t)(uint32_t gpio_mask, uint32_t flags);
++
++      uint16_t *table = (uint16_t *)(uintptr_t)(*(uint16_t *)0x00000014);
++      rom_lookup_t lookup =
++        (rom_lookup_t)(uintptr_t)(*(uint16_t *)0x00000018);
++      reset_usb_boot_t reset_usb_boot =
++        (reset_usb_boot_t)lookup(table, 'U' | ('B' << 8));
++
++      up_irq_save();
++      reset_usb_boot(0, 0);
++    }
++
++  /* vaporOS: the generic armv6-m up_systemreset() only resets the core
++   * (SYSRESETREQ). On the RP2040 that leaves the QSPI flash in XIP mode and
++   * the bootrom then drops into BOOTSEL. Do what pico-sdk's
++   * watchdog_reboot() does instead: reset everything except the oscillators
++   * via the watchdog (PSM WDSEL, then WATCHDOG_CTRL.TRIGGER).
++   */
++
++  *(volatile uint32_t *)0x40010008 = 0x0001fffc;  /* PSM_WDSEL */
++  *(volatile uint32_t *)0x40058000 = 1u << 31;    /* WATCHDOG_CTRL */
++  for (; ; );
++
+   return 0;
+ }
+ 

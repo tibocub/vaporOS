@@ -1,0 +1,26 @@
+vaporOS NuttX patch: rp2040-uf2-family
+
+Problem:   The UF2 produced by the build is silently ignored by the RP2040
+           bootrom: the board stays in BOOTSEL as if nothing was copied.
+Evidence:  picotool 2.x `uf2 convert` writes the "absolute" family ID unless told
+           otherwise; the RP2040 bootrom only accepts family 0xe48bff56. With
+           `--family rp2040` the same image flashes. (Hit on the very first flash.)
+Fix:       pass `--family rp2040` to picotool in tools/rp2040/Config.mk.
+Upstream:  YES, as is. Not specific to vaporOS: any picotool 2.x user of
+           this board config hits it. Candidate to contribute first.
+
+Apply: git -C ../nuttx apply ../vaporOS/patches/nuttx/rp2040-uf2-family.patch   (setup.sh does this)
+
+diff --git a/tools/rp2040/Config.mk b/tools/rp2040/Config.mk
+index 54a0013250..4965d628c0 100644
+--- a/tools/rp2040/Config.mk
++++ b/tools/rp2040/Config.mk
+@@ -33,7 +33,7 @@ PICOTOOL_BIN_PATH ?= $(PICO_SDK_PATH)$(DELIM)_deps$(DELIM)picotool$(DELIM)picoto
+ define GEN_PICO_UF2
+   $(Q)echo "Generating: nuttx.uf2"; \
+ 
+-  $(Q)$1 uf2 convert --quiet -t elf nuttx nuttx.uf2;
++  $(Q)$1 uf2 convert --quiet --family rp2040 -t elf nuttx nuttx.uf2;
+   $(Q)([ $$? -eq 0 ] && echo nuttx.uf2 >> nuttx.manifest && echo "Done.")
+ endef
+ 

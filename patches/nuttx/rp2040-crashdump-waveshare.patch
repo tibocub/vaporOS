@@ -1,0 +1,118 @@
+vaporOS NuttX patch: rp2040-crashdump-waveshare
+
+Problem:   With no UART and no debugger, a crash leaves nothing to look at; the
+           USB console dies with the chip.
+Evidence:  Early crashes (stack overflows in tbx) were invisible until a record
+           of PC/LR/registers survived the reset.
+Fix:       board_crashdump() stores pc, lr, sp, xpsr, r0-r3, r12, the task's
+           stack bounds, name, file, line and message in a struct at the top
+           of SRAM (0x2003ff00), then the board resets. After it comes back
+           up, `xd 2003ff00 96` dumps the record. It lives in SRAM3, not
+           SRAM4/5, because the bootrom uses SRAM4/5 while rebooting.
+Upstream:  MAYBE. The mechanism (CONFIG_BOARD_CRASHDUMP_CUSTOM hook) is
+           upstream already; this is just a RAM-record implementation for one
+           board. Could generalise as a "crash record in RAM" helper.
+
+Apply: git -C ../nuttx apply ../vaporOS/patches/nuttx/rp2040-crashdump-waveshare.patch   (setup.sh does this)
+
+diff --git a/boards/arm/rp2040/waveshare-rp2040-zero/src/Make.defs b/boards/arm/rp2040/waveshare-rp2040-zero/src/Make.defs
+index f2a92e8ced..865abfca4d 100644
+--- a/boards/arm/rp2040/waveshare-rp2040-zero/src/Make.defs
++++ b/boards/arm/rp2040/waveshare-rp2040-zero/src/Make.defs
+@@ -21,6 +21,7 @@
+ include $(TOPDIR)/Make.defs
+ 
+ CSRCS = rp2040_boardinitialize.c
++CSRCS += rp2040_crashdump.c
+ CSRCS += rp2040_bringup.c
+ 
+ ifeq ($(CONFIG_DEV_GPIO),y)
+diff --git a/boards/arm/rp2040/waveshare-rp2040-zero/src/rp2040_crashdump.c b/boards/arm/rp2040/waveshare-rp2040-zero/src/rp2040_crashdump.c
+new file mode 100644
+index 0000000000..0c1b505940
+--- /dev/null
++++ b/boards/arm/rp2040/waveshare-rp2040-zero/src/rp2040_crashdump.c
+@@ -0,0 +1,83 @@
++/****************************************************************************
++ * boards/arm/rp2040/waveshare-rp2040-zero/src/rp2040_crashdump.c
++ *
++ * vaporOS: the Zero has no UART/debug probe wired up, so after a crash
++ * there is nothing to look at. Record what happened in the top 256 bytes of
++ * SRAM (reserved by lowering CONFIG_RAM_SIZE, so the heap never touches it);
++ * it survives the reset triggered by CONFIG_BOARD_RESET_ON_ASSERT and can be
++ * read back from NSH with:  xd 0x2003ff00 256
++ *
++ * Layout (32-bit words):
++ *   [0]  magic 0xC8A5D00D       [1] pc    [2] lr   [3] sp   [4] xpsr
++ *   [5]  r0 [6] r1 [7] r2 [8] r3 [9] r12
++ *   [10] fault-time stack pointer   [11] line number
++ *   [12] stack_base [13] stack_size
++ *   [16..31] task name (NUL-terminated, 16 bytes) / file (32) / msg (32)
++ ****************************************************************************/
++
++#include <nuttx/config.h>
++#include <nuttx/board.h>
++#include <nuttx/sched.h>
++#include <arch/irq.h>
++#include <stdint.h>
++#include <string.h>
++
++#ifdef CONFIG_BOARD_CRASHDUMP_CUSTOM
++
++#define CRASH_ADDR 0x2003ff00
++
++struct vapor_crash_s
++{
++  uint32_t magic;
++  uint32_t pc, lr, sp, xpsr;
++  uint32_t r0, r1, r2, r3, r12;
++  uint32_t cur_sp;
++  uint32_t line;
++  uint32_t stack_base, stack_size;
++  uint32_t pad[2];
++  char name[16];
++  char file[32];
++  char msg[32];
++};
++
++void board_crashdump(uintptr_t sp, FAR struct tcb_s *tcb,
++                     FAR const char *filename, int lineno,
++                     FAR const char *msg, FAR void *regs)
++{
++  volatile struct vapor_crash_s *c = (volatile struct vapor_crash_s *)
++                                     CRASH_ADDR;
++  uint32_t *r = (uint32_t *)regs;
++  unsigned i;
++
++  memset((void *)c, 0, sizeof(*c));
++  if (r != NULL)
++    {
++      c->pc = r[REG_PC];  c->lr = r[REG_LR]; c->sp = r[REG_SP];
++      c->xpsr = r[REG_XPSR];
++      c->r0 = r[REG_R0]; c->r1 = r[REG_R1]; c->r2 = r[REG_R2];
++      c->r3 = r[REG_R3]; c->r12 = r[REG_R12];
++    }
++
++  c->cur_sp = sp;
++  c->line   = lineno;
++  if (tcb != NULL)
++    {
++      c->stack_base = (uint32_t)(uintptr_t)tcb->stack_base_ptr;
++      c->stack_size = tcb->adj_stack_size;
++      for (i = 0; i < 15 && tcb->name[i]; i++) c->name[i] = tcb->name[i];
++    }
++
++  if (filename != NULL)
++    {
++      for (i = 0; i < 31 && filename[i]; i++) c->file[i] = filename[i];
++    }
++
++  if (msg != NULL)
++    {
++      for (i = 0; i < 31 && msg[i]; i++) c->msg[i] = msg[i];
++    }
++
++  c->magic = 0xc8a5d00d;
++}
++
++#endif

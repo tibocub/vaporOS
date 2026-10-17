@@ -13,4 +13,4 @@ fi
 
 source "$DIR/scripts/lib.sh"
 cd nuttx
-[ -f .config ] && distclean_preserving_lua || echo "No .config -- nothing to clean."
+[ -f .config ] && { distclean_preserving_lua; clean_stale_objects; } || echo "No .config -- nothing to clean."

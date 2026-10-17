@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Shared by build.sh and clean.sh. Source after `cd nuttx`.
+# Shared by vbuild.sh and clean.sh. Source after `cd nuttx`.
 
 # apps/interpreters/lua's own distclean deletes the downloaded lua
 # tarball every time, forcing a re-download on every rebuild even

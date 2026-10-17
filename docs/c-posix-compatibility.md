@@ -188,3 +188,35 @@ is not, regardless of its own portability reputation elsewhere.
    (touches upstream NuttX's own filesystem code, not `apps/`) -- worth
    knowing it's the actual blocker next time something needs it,
    rather than re-diagnosing from scratch.
+
+## Small, fixed-resource targets: what the RP2040 added
+
+Everything above was found on the simulator, which has 64 MB of RAM and a
+host kernel behind it. Putting the same software on a 264 KB chip surfaced a
+second class of problem -- not missing APIs, but assumptions about the
+*environment* a Unix process lives in. compat-scan now flags the patterns
+that caused them (the check ids are in the scanner output and in
+compat-log.md):
+
+- **`shared-globals`** -- mutable file-scope `static`s. A Unix process owns its
+  copy; NuttX tasks of the same program share one. (toybox's per-task context.)
+- **`underscore-exit`** -- `_exit()` skips `exit()`'s cleanup on NuttX, including the
+  task-local-storage destructors. More generally, **code that leaves allocations
+  for the OS to reclaim at process exit leaks here**, because all tasks share one
+  heap. toybox did both: ~13 KB lost per command, a 264 KB chip out of RAM after
+  a few dozen commands, invisible on the simulator. The fix (track and free
+  a task's allocations at exit) is in vaporOS-coreutils/vapor_entry.c.
+  Measure with `free` before and after 20 runs of a command.
+- **`alloca-stack`** and stack size generally -- NuttX tasks get small fixed stacks and
+  the task-local-storage block sits at the *bottom* of the stack, so an overflow
+  produces a garbage pointer elsewhere rather than a fault.
+- **`hardcoded-device-path`** -- device nodes are board-defined (`/dev/ttyACM0` only exists
+  with a CDC-ACM console; an SD card is `/dev/mmcsd0`). Take them from configuration.
+- **`tty-winsize-query`** -- a serial or USB console cannot report its size.
+- **`linux-sysfs-procfs`** -- `/sys` does not exist and `/proc` is laid out differently.
+
+And one that is about the build, not the code: **`kconfig-silent-drop`**. Kconfig
+discards an option whose dependency is unmet without a word, so a script that
+"enables" it can run for months with the option never on. vaporOS now verifies
+every requested option after configuring (tools/vconfig.py verify).
+

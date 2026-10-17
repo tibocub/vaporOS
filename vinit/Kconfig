@@ -2,7 +2,7 @@ config VAPOROS_VINIT
 	tristate "vinit -- vaporOS init: USB console + vaporshell, no NSH"
 	default n
 	---help---
-		Boot entrypoint for USB-CDC/ACM-console boards (e.g. the RP2040).
+		Boot entrypoint for boards without NSH (USB CDC/ACM or UART console).
 		Brings up the CDC/ACM gadget, waits for a host to connect (three
 		Enters, like NSH's own usbconsole), points stdio at it and runs
 		vaporshell, restarting the wait when the host disconnects or the
@@ -26,8 +26,28 @@ config VAPOROS_VINIT_SHELL
 	string "Shell to run"
 	default "vaporshell"
 
+config VAPOROS_VINIT_CDCACM
+	bool "Bring up the USB CDC/ACM gadget (USB console)"
+	default y
+	depends on CDCACM
+	---help---
+		Connect the CDC/ACM gadget through boardctl before opening the
+		console. Turn off for a UART (or any console that needs no setup).
+
+config VAPOROS_VINIT_WAIT_HOST
+	bool "Wait for three Enters before starting the shell"
+	default y
+	---help---
+		A USB console device node opens as soon as USB is up, long before a
+		terminal program is attached; three Enters prove one is. A UART is
+		always "attached", so turn this off there.
+
 config VAPOROS_VINIT_TTY
 	string "Console device"
 	default "/dev/ttyACM0"
+	---help---
+		Device node of the console, e.g. /dev/ttyACM0, /dev/ttyS0 or
+		/dev/console. Set by the board's console hardware descriptor
+		(hardware/console/*.conf).
 
 endif

@@ -42,6 +42,7 @@ xattr                     = 11
 raw-syscall               = 4
 mount-table-introspection = 4
 environ-replace           = 4
+kconfig-silent-drop       = 4
 inotify                   = 3
 getdelim-uninit-size      = 2
 link-chmod-enosys         = 2
@@ -49,6 +50,7 @@ fork-call                 = 2
 exec-family               = 2
 arg-max-sysconf           = 2
 dot-path-in-fat           = 2
+task-stack-size           = 2
 paths-h                   = 1
 has-include-probe         = 1
 utmpx-h                   = 1
@@ -65,6 +67,9 @@ signed-char-index         = 1
 open-dot                  = 1
 environ-null-when-empty   = 1
 fnmatch-pathname-ignored  = 1
+underscore-exit           = 1
+exit-reclaims-memory      = 1
+hardcoded-device-path     = 1
 
 ---- LOGS -------------------------------
 [toybox]
@@ -116,7 +121,7 @@ fnmatch-pathname-ignored  = 1
     portable_wc renamed to vwc.
 (1) regex-disabled -- CONFIG_LIBC_REGEX (TRE) is off unless
     CONFIG_ALLOW_MIT_COMPONENTS is set; cut -F needs it, grep/sed
-    will too. Enabled in scripts/build.sh.
+    will too. Enabled in features/base.conf.
 (1) st-ino-identity -- NuttX filesystems never fill st_ino/st_dev, so
     same_file() (lib/lib.c) is true for every pair of files: cp/mv
     refused every copy ("'dst' is 'src'") since batch 3. cp.c now
@@ -185,4 +190,34 @@ fnmatch-pathname-ignored  = 1
     fnmatch() with flags=0 on purpose) never matched. Own
     fnmatch() in nuttx-shims/vapor_libc.h, standard recursive
     semantics, used only by toybox.
+
+[tbx-runtime (vaporOS-coreutils on the RP2040)]
+(1) underscore-exit -- toybox ends every command with _exit(), which on
+    NuttX skips the task-local-storage destructors, so each command leaked
+    its ~12 KB vapor_ctx. _exit() is now routed through
+    vapor_task_exit() (nuttx-shims/vapor_ctx.h, vapor_entry.c).
+(1) exit-reclaims-memory -- toybox leaves most allocations to process exit
+    and NuttX tasks share one heap, so `cat`/`ls`/`date` leaked 4-7 KB
+    each on top of that; a 264 KB RP2040 was out of RAM after ~25 commands.
+    Every tbx allocation is now tracked per task and freed at exit
+    (vapor_malloc & co.). After the fix 5x `cat` costs 24 bytes. Not a
+    compat-scan check: it is a property of the whole program, not a call.
+(2) task-stack-size -- vaporshell (recursion for subshells/$(...)) and each
+    toybox applet need far more than NuttX's 2 KB default task stack
+    (16 KB and 8 KB). The overflow corrupts the task-local-storage block at
+    the bottom of the stack, so it appears as a garbage vapor_ctx() pointer,
+    not as a stack fault. Sizes now live in features/base.conf.
+
+[vaporOS-build (boards, configs)]
+(1) hardcoded-device-path -- vinit opened a literal /dev/ttyACM0. The
+    console device is now CONFIG_VAPOROS_VINIT_TTY, set by the board's
+    console descriptor (hardware/console/*.conf), together with whether to
+    bring up the CDC-ACM gadget and wait for the host.
+(4) kconfig-silent-drop -- olddefconfig silently discards an option whose
+    dependency is unmet, so the old build scripts "enabled" things that never
+    were: SCHED_CHILD_STATUS on the RP2040 (needs SCHED_HAVE_PARENT), TTY_SIGSTP
+    (misspelled; it is TTY_SIGTSTP), READLINE_EDIT_EMACS (absent in
+    nuttx-apps 13.0), and LIBC_LOCALTIME on sim:nx11 (needs the environment,
+    which that base turns off). vbuild.sh now fails when a requested option
+    is not honored (tools/vconfig.py verify).
 

@@ -1,3 +1,23 @@
+vaporOS nuttx-apps patch: readline-completer-hook
+
+Problem:   NuttX readline's Tab completion only completes *builtin app names*
+           for the whole line. A shell needs per-word completion: commands at
+           command position, file names everywhere else.
+Evidence:  `ls /fl<Tab>` did nothing useful; `ec<Tab>` could complete only apps.
+Fix:       readline_completer(fn) registers an application hook
+           fn(line, len, insert_buf, insert_len, list_cb, ctx). Readline calls it on
+           Tab, inserts what it returns, and prints the candidate list.
+           The list, prompt and line are gathered and written with ONE write():
+           the old byte-at-a-time output of a list was what first exposed the
+           USB console wedge (see nuttx/cdcacm-tx-ring-race.patch).
+           vaporshell registers vs_complete() (vaporshell/complete.c).
+Upstream:  MAYBE. A completion callback is a generally useful readline feature, but
+           this is a quick hook, not a designed API (no cursor-in-middle support,
+           one global hook). Would need a cleaner interface to be accepted.
+Note:      readline_completer() is a process-global hook: a program that reads
+           lines while vaporshell's hook is installed (vlua's REPL) must clear it
+           with readline_completer(NULL).
+
 diff --git a/include/system/readline.h b/include/system/readline.h
 index 5ab963879..390230c16 100644
 --- a/include/system/readline.h
@@ -213,18 +233,3 @@ index 0fd3b9396..302d31208 100644
  /****************************************************************************
   * Name: readline_extmatch
   *
-@@ -654,6 +791,14 @@ ssize_t readline_common(FAR struct rl_common_s *vtbl, FAR char *buf,
-             }
-         }
- 
-+      /* vaporOS: Ctrl-D on an empty line is end-of-file */
-+
-+      else if (ch == 0x04 && nch == 0)
-+        {
-+          buf[0] = '\0';
-+          return 0;
-+        }
-+
-       /* Check for the beginning of a VT100 escape sequence */
- 
-       else if (ch == ASCII_ESC)
