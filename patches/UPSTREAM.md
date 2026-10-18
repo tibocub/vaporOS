@@ -33,7 +33,6 @@ run it. Each board lists the patches it needs under `[patches]`.
 | patch | what | upstream? |
 |---|---|---|
 | `readline-eof-ctrl-d` | Ctrl-D on an empty line returns EOF from readline | **Likely yes**; make it configurable if asked. |
-| `readline-completer-hook` | `readline_completer()`: an application hook for per-word Tab completion; the candidate list is written with one `write()` | **Maybe.** Useful, but it is a quick global hook, not a designed API. |
 | `termcurses-read-retry` | sleep and retry instead of returning -1 on an empty key read | **No.** Written for a wrong theory of the vi hang; harmless but unproven. Remove unless a failure is shown. |
 
 ## Not patches, but worth knowing (found along the way)

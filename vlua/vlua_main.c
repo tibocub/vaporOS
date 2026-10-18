@@ -91,7 +91,6 @@ static void vlua_repl(lua_State *L)
   static char chunk[VLUA_LINE * 8];
   bool more = false;
 
-  readline_completer(NULL);     /* the parent shell's completer isn't ours */
   printf("%s  (Ctrl-D or exit to quit)\n", LUA_VERSION);
   chunk[0] = '\0';
 
