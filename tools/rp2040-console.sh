@@ -4,10 +4,10 @@
 # hands over to picocom. Exit with Ctrl-A Ctrl-X. Re-run after a reboot/replug.
 set -euo pipefail
 
-tty() { ls /dev/ttyACM* 2>/dev/null | tail -1; }
+. "$(dirname "$0")/rp2040-tty.sh"
 
 if [ -z "$(tty)" ]; then
-  echo "waiting for the board (/dev/ttyACM*)..." >&2
+  echo "waiting for the board (USB "NuttX CDC_ACM")..." >&2
   until [ -n "$(tty)" ]; do sleep 0.5; done
   sleep 1
 fi

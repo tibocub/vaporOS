@@ -27,7 +27,6 @@ device. A programmable environment needs the PC side too.
 | `..` of `/bin` shows mode `d---------` | binfs cannot stat `..` | cosmetic |
 | the simulator's `/` shows a nonsense modification date | sim, early boot clock | does not happen on the RP2040 |
 | `ps`/`top` show every toybox command as `tbx`, not the applet name | ps/top | would need tbx to set its task name |
-| `readline-history-ctrlpn.patch` does not apply to NuttX 13.0 | nuttx-apps | needs re-porting; history persistence missing |
 | `console/uart` descriptor never exercised | hardware/ | `untested` |
 | the CDC-ACM buffer enlargement may be unnecessary | hardware/console/usb-cdcacm | the real fix was the TX race; test without |
 | `termcurses-read-retry` patch is probably unnecessary | patches/ | drop unless a failure is shown |

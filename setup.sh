@@ -26,11 +26,6 @@ if [ ! -d nuttx-apps ]; then
   # releases/13.0, confirmed directly).
   git -C nuttx-apps checkout "releases/13.0"
 
-  # readline-history-ctrlpn.patch does NOT apply to releases/13.0: it was
-  # written against a much newer nuttx-apps, whose readline_common.c has
-  # CONFIG_READLINE_EDIT_EMACS (the infrastructure its Ctrl+P/Ctrl+N navigation
-  # depends on); here that option does not exist at all. Re-porting it is
-  # separate work, so tools/apply-patches.sh skips it.
 fi
 
 # vaporOS-coreutils and vaporshell: both split into their own repos
@@ -66,14 +61,15 @@ elif command -v dnf >/dev/null 2>&1; then
 	git gperf automake libtool pkgconfig @development-tools gperf genromfs \
 	gmp-devel mpfr-devel libmpc-devel isl-devel binutils-devel elfutils-libelf-devel \
 	expat-devel gcc-c++ g++ picocom uboot-tools util-linux
-elif command -v dnf >/dev/null 2>&1 && ! command -v kconfig >/dev/null 2>&1; then
-	git clone https://github.com/patacongo/tools
-	cd tools/kconfig-frontends
-	./configure --enable-mconf --disable-nconf --disable-gconf --disable-qconf
-	aclocal
-	automake
-	make
-	sudo make install
+	if ! command -v kconfig-conf >/dev/null 2>&1; then    # not packaged for Fedora
+		git clone https://github.com/patacongo/tools
+		cd tools/kconfig-frontends
+		./configure --enable-mconf --disable-nconf --disable-gconf --disable-qconf
+		aclocal
+		automake
+		make
+		sudo make install
+	fi
 else
   echo "No apt-get or dnf -- install kconfig-frontends, genromfs, xxd, libx11-dev manually." >&2
 fi

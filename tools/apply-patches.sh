@@ -7,9 +7,8 @@
 #
 # With no arguments every patch is applied. Already-applied patches are
 # recognised (the reverse applies cleanly) and skipped, so it is safe to run
-# on every build. A patch whose header says "does NOT apply" is known-broken
-# and only tried when asked for by name. Why each patch exists, and whether it
-# could go upstream, is in its own header and in patches/UPSTREAM.md.
+# on every build. Why each patch exists, and whether it could go upstream, is
+# in its own header and in patches/UPSTREAM.md.
 set -uo pipefail
 
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -28,7 +27,7 @@ apply_one() {
   fi
 }
 
-wanted() { [ $# -eq 1 ] && return 0; local n="$1"; shift; for w in "$@"; do [ "$w" = "$n" ] && return 0; done; return 1; }
+wanted() { local n="$1"; shift; for w in "$@"; do [ "$w" = "$n" ] && return 0; done; return 1; }
 
 for repo in nuttx nuttx-apps; do
   [ -d "$WORKSPACE/$repo" ] || continue
@@ -37,9 +36,6 @@ for repo in nuttx nuttx-apps; do
     name="$(basename "$patch")"
     if [ $# -gt 0 ]; then
       wanted "$name" "$@" || continue
-    elif head -12 "$patch" | grep -q "does NOT apply"; then
-      echo "  skipped    $repo: $name (known not to apply; see its header)"
-      continue
     fi
     apply_one "$repo" "$patch"
   done

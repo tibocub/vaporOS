@@ -6,21 +6,22 @@
 # though lua's source never changed. Preserve it across distclean
 # instead.
 distclean_preserving_lua() {
-  local TARBALL DIR="../nuttx-apps/interpreters/lua/lua"
+  local TARBALL DIR="../nuttx-apps/interpreters/lua/lua" KEEP
   TARBALL=$(ls ../nuttx-apps/interpreters/lua/v*.tar.gz 2>/dev/null | head -1 || true)  # none yet is fine (first build, or a manual distclean removed it)
+  KEEP=$(mktemp -d)
 
-  [ -n "$TARBALL" ] && mv "$TARBALL" /tmp/vaporos-lua.tar.gz
+  [ -n "$TARBALL" ] && mv "$TARBALL" "$KEEP/tarball"
   if [ -d "$DIR" ] && [ -f "$DIR/lualib.h" ]; then
-    rm -rf /tmp/vaporos-lua-dir
-    mv "$DIR" /tmp/vaporos-lua-dir
+    mv "$DIR" "$KEEP/dir"
   elif [ -d "$DIR" ]; then
     rm -rf "$DIR"  # incomplete/wrong layout, don't cache it
   fi
 
   make distclean
 
-  [ -f /tmp/vaporos-lua.tar.gz ] && mv /tmp/vaporos-lua.tar.gz "../nuttx-apps/interpreters/lua/$(basename "$TARBALL")"
-  [ -d /tmp/vaporos-lua-dir ] && mv /tmp/vaporos-lua-dir "$DIR"
+  [ -f "$KEEP/tarball" ] && mv "$KEEP/tarball" "../nuttx-apps/interpreters/lua/$(basename "$TARBALL")"
+  [ -d "$KEEP/dir" ] && mv "$KEEP/dir" "$DIR"
+  rmdir "$KEEP"
 
   # Tarball present but never unpacked (e.g. manually placed): unpack
   # it. Handles both GitHub's flat layout and lua.org's src/ layout.

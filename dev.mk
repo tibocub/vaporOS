@@ -8,8 +8,7 @@
 BOARD ?= sim-nsh
 NUTTX := $(abspath ../nuttx)
 
-.PHONY: build clean run flash term configure boards show check help \
-        rp2040 rp2040-build rp2040-flash rp2040-term rp2040-run
+.PHONY: build clean run flash term configure boards show check help rp2040
 
 build:
 	@bash scripts/vbuild.sh $(BOARD)
@@ -41,15 +40,9 @@ show:
 check:
 	@python3 tools/vconfig.py check
 
-# Older RP2040 spellings, kept as aliases.
-rp2040-build: BOARD := rp2040-zero
-rp2040-build: build
-rp2040-flash: BOARD := rp2040-zero
-rp2040-flash: flash
-rp2040-term: BOARD := rp2040-zero
-rp2040-term: term
-rp2040 rp2040-run: BOARD := rp2040-zero
-rp2040 rp2040-run: build run
+# Build, flash and open the console of the RP2040 board in one go.
+rp2040: BOARD := rp2040-zero
+rp2040: build run
 
 help:
 	@echo "make -f dev.mk boards                     # list targets"
