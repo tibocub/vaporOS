@@ -376,6 +376,11 @@ name and the source code fitted on a single floppy disc ?
 
 # ROADMAP
 
+Current direction and ordered next steps: [docs/next-steps.md](docs/next-steps.md).
+The reasoning about a cross-platform Lua runtime (vlua), libuv vs. our own event loop,
+portable program formats and the paused Windows simulator:
+[docs/lua-runtime.md](docs/lua-runtime.md), [docs/windows-sim.md](docs/windows-sim.md).
+
 ## VarporUtils
 this section simply keep track of the implementation of the basic commands required to make
 any unix-like system usable and isn't tied to a particular roadmap goal (but most should at

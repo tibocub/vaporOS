@@ -4,7 +4,13 @@ Goal: build the native simulator as a Windows program, **from Linux/WSL**, so
 development stays on Linux and Windows users get a `.exe` that can read and edit
 their own files.
 
-Status: **does not build yet.** Below is what was verified, what was learned and
+Status (2026-10-18): **paused, not a priority.** The project decided to focus on
+vaporOS as a programmable environment for many boards, with vlua as the
+cross-platform piece (docs/lua-runtime.md, docs/next-steps.md). The Windows
+simulator remains a possible bonus: it would let everything run on Windows through
+the sim. Resume with the plan below if that changes.
+
+Status of the spike: **does not build yet.** Below is what was verified, what was learned and
 what is next. Nothing here has produced a running Windows binary.
 
 ## What NuttX gives us
