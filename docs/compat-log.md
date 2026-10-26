@@ -76,6 +76,7 @@ symlink-api               = 1
 include-nostdinc          = 1
 lua-number-width          = 1
 dot-slash-path            = 1
+tz-state-kept             = 1
 
 ---- LOGS -------------------------------
 [toybox]
@@ -274,3 +275,6 @@ dot-slash-path            = 1
     plain relative paths. The same quirk makes `vlua ./x.lua` fail on the sim ("Not a directory"). Not a compat-scan
     check yet.
 
+(1) tz-state-kept -- the first localtime()/mktime() (Lua's os.date, os.time{...}) allocates libc's time-zone table
+    from the heap and never frees it; 5.1 KB with the defaults (TZ_MAX_TIMES=370, TZ_MAX_TYPES=20). Shrunk on the
+    RP2040 in board.conf (-3.5 KB). Not a compat-scan check.
