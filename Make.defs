@@ -31,3 +31,6 @@ endif
 ifneq ($(CONFIG_VAPOROS_VINIT),)
 CONFIGURED_APPS += $(APPDIR)/external/vinit
 endif
+ifneq ($(CONFIG_VAPOROS_VAPORUI),)
+CONFIGURED_APPS += $(APPDIR)/external/vaporui
+endif

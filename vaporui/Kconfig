@@ -1,0 +1,20 @@
+config VAPOROS_VAPORUI
+	tristate "vaporUI examples (TUI library from ../vaporUI)"
+	default n
+	---help---
+		Builds the vaporUI library (sibling checkout ../vaporUI, POSIX backend)
+		with a few of its examples as commands: vui_windows, vui_textarea,
+		vui_input, vui_colors, vui_buttons, vui_layout. Used to check
+		vaporUI's RAM and flash use on small boards.
+
+if VAPOROS_VAPORUI
+
+config VAPOROS_VAPORUI_PRIORITY
+	int "vaporUI examples priority"
+	default 100
+
+config VAPOROS_VAPORUI_STACKSIZE
+	int "vaporUI examples stack size"
+	default 4096
+
+endif
