@@ -149,12 +149,15 @@ vaporshell. No dynamic linking, so `vlua/vlua_libs.c` puts them in
 `package.preload` and `require("lfs")` works as on a desktop Lua. A new library
 is one Kconfig bool, three Makefile lines and one table entry.
 
-Verified on the sim (require + basic calls) and compiled for the RP2040 (about
-27 KB of flash for all three: lpeg 15, cjson 8, lfs 4). **Not run on the
-board** (none attached), so RAM use and littlefs behaviour there are unchecked.
+Verified on the sim and on the RP2040-Zero (require + basic calls; lpeg, cjson
+and lfs all work). Flash: about 27 KB for all three (lpeg 15, cjson 8, lfs 4).
+RAM on the board, Lua heap per `require`: lpeg 2.3 KB, cjson 1.8 KB, lfs 2.6 KB
+(base Lua state 16.7 KB). The libraries' own test suites have not been run.
 
 Known gaps, all of them NuttX, not the libraries (see compat-log.md):
-`lfs.touch` and mtimes need a filesystem with `chstat` (not FAT/tmpfs; littlefs
-only with `FS_LITTLEFS_ATTR_UPDATE`), `lfs.lock_dir` needs `symlink`, and
-`dev`/`ino` are always 0.
-
+`lfs.touch` and mtimes need a filesystem with `chstat`: not FAT/tmpfs (the sim's
+`/tmp` reports mtime 0), but littlefs has it (`FS_LITTLEFS_ATTR_UPDATE=y`), and
+`touch`, `attributes`, `mkdir` and `rmdir` work on the board's `/flash`.
+`lfs.lock_dir` needs `symlink` and fails everywhere tested. `dev`/`ino` are always 0
+(on the sim; `ino` also 0 on `/flash`). Like upstream, `lfs.touch` does not create
+a missing file.

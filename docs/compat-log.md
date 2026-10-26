@@ -243,7 +243,8 @@ include-nostdinc          = 1
     number" on the sim's FAT /tmp: FAT, tmpfs, smartfs, romfs and procfs leave
     chstat NULL (read in nuttx/fs/*; only hostfs, nfs, rpmsgfs, userfs,
     littlefs with CONFIG_FS_LITTLEFS_ATTR_UPDATE implement it). Not worked
-    around: lfs returns nil, err. FAT also reports mtime 0. New compat-scan
+    around: lfs returns nil, err. FAT also reports mtime 0. littlefs on the
+    RP2040 (ATTR_UPDATE=y) does support it: touch and mtime verified on /flash. New compat-scan
     check; it also covers the chmod ENOSYS seen under link-chmod-enosys.
 (1) symlink-api -- lfs.lock_dir() (a symlink() lock) fails with ENOSYS on /tmp;
     lfs.symlinkattributes() falls back to the lstat data. Both return nil, err
