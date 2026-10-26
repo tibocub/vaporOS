@@ -1,0 +1,49 @@
+config VAPOROS_VBENCH
+	tristate "vbench -- scripting-VM benchmark host (../langbench)"
+	default n
+	---help---
+		Runs the langbench benchmark scripts (embedded in the image) in one
+		scripting VM and prints time and heap use per benchmark. The VM is
+		chosen below; one VM per image keeps flash and RAM numbers clean.
+		The sources live in ../langbench (see its README), not in this repo.
+
+if VAPOROS_VBENCH
+
+choice
+	prompt "VM under test"
+	default VAPOROS_VBENCH_LUA
+
+config VAPOROS_VBENCH_LUA
+	bool "Lua 5.4 (NuttX's copy; do not enable INTERPRETERS_LUA too)"
+
+config VAPOROS_VBENCH_WREN
+	bool "Wren"
+
+config VAPOROS_VBENCH_BERRY
+	bool "Berry"
+
+config VAPOROS_VBENCH_MQUICKJS
+	bool "MicroQuickJS (own copy; do not enable INTERPRETERS_MQUICKJS too)"
+
+config VAPOROS_VBENCH_JERRYSCRIPT
+	bool "JerryScript (ES.next profile)"
+
+config VAPOROS_VBENCH_MICROPYTHON
+	bool "MicroPython (embed port)"
+
+endchoice
+
+config VAPOROS_VBENCH_JERRY_HEAP_KB
+	int "JerryScript heap size (KB, fixed at build time)"
+	default 80
+	depends on VAPOROS_VBENCH_JERRYSCRIPT
+
+config VAPOROS_VBENCH_STACKSIZE
+	int "stack size"
+	default 16384
+
+config VAPOROS_VBENCH_PRIORITY
+	int "priority"
+	default 100
+
+endif
