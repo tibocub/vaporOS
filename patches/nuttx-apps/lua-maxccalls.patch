@@ -1,0 +1,53 @@
+vaporOS nuttx-apps patch: lua-maxccalls
+
+Problem:   Lua allows 200 nested C calls (LUAI_MAXCCALLS) before it raises "C stack
+           overflow". NuttX runs Lua in a task with a fixed stack and no guard page, so
+           on a small stack (vlua has 24 KB) the 200th level is far past the end of the
+           stack: deep pcall/metamethod/callback nesting, or an lpeg pattern nested 300
+           deep, silently overwrites the memory below the stack and resets the board.
+Evidence:  RP2040-Zero, vlua. /proc/self/stack StackUsed grows 480 bytes per nested
+           pcall (depth 20: 11992, depth 30: 16792, stack 24520), so about 45 levels
+           fit. A crash record (xd 2003ff00) after an lpeg test showed the stack
+           pointer 19 KB below stack_base. NOT shown: that every crash seen in the lpeg
+           suite has this cause (one was a bad pointer inside luaH_getshortstr).
+Fix:       new INTERPRETERS_LUA_MAXCCALLS (default 200 = upstream behaviour) passed as
+           -DLUAI_MAXCCALLS. A board sets it to about stack_size / 500.
+           Honoured by Lua 5.4.3 and newer only: 5.4.0, NuttX's default version, counts
+           C stack use differently (CSTACKCF) and ignores the macro.
+Upstream:  Maybe. Generic and small, but needs the numbers above on a second port.
+
+diff --git a/interpreters/lua/Kconfig b/interpreters/lua/Kconfig
+index 418cf8472..9702dad12 100644
+--- a/interpreters/lua/Kconfig
++++ b/interpreters/lua/Kconfig
+@@ -46,6 +46,17 @@ config INTERPRETERS_LUA_32BIT
+ 	---help---
+ 		"Use int and float instead of long and double for Lua numbers."
+ 
++config INTERPRETERS_LUA_MAXCCALLS
++	int "Maximum nesting of C calls (LUAI_MAXCCALLS)"
++	default 200
++	---help---
++		How deep C calls may nest (pcall in pcall, metamethods, string.gsub
++		callbacks, parser nesting) before Lua raises "C stack overflow".
++		Lua's own default of 200 assumes a stack of 100 KB or more; on a
++		task with a small stack the overflow is not caught and corrupts
++		memory. Roughly: stack size / 500 bytes. Only used by Lua 5.4.3 and
++		newer.
++
+ config INTERPRETERS_LUA_PRIORITY
+ 	int "Lua interpreter priority"
+ 	default 100
+diff --git a/interpreters/lua/Makefile b/interpreters/lua/Makefile
+index 40daf76ed..bb1eda317 100644
+--- a/interpreters/lua/Makefile
++++ b/interpreters/lua/Makefile
+@@ -51,6 +51,8 @@ ifeq ($(CONFIG_INTERPRETERS_LUA_32BITS),y)
+ CFLAGS += -DLUA_32BITS
+ endif
+ 
++CFLAGS += -DLUAI_MAXCCALLS=$(CONFIG_INTERPRETERS_LUA_MAXCCALLS)
++
+ ifneq ($(CONFIG_INTERPRETERS_LUA_PATH),"")
+ CFLAGS += -DLUA_PATH_DEFAULT=\"$(CONFIG_INTERPRETERS_LUA_PATH)\"
+ endif
