@@ -37,8 +37,9 @@ Decision (for now): **idea 2.** Reasons:
 - `docs/vapor-api.md`: the API rule: `vapor` holds only what plain Lua cannot do
   (directory listing, mkdir, ... are the confirmed gaps). `vapor.print` and
   `vapor.read` exist; the rest is design. **verified (docs)**
-- NuttX Lua is built with 32-bit integers and floats (`INTERPRETERS_LUA_32BIT`,
-  default y), which matters for bytecode portability (below). **verified**
+- NuttX Lua is *meant* to be built with 32-bit integers and floats (`INTERPRETERS_LUA_32BIT`, default y), which
+  matters for bytecode portability (below). Until 2026-10-26 it was not (see the typo fix below); now it is.
+  **verified on the board**
 
 ## What the runtime needs beyond today's vlua
 
@@ -185,10 +186,18 @@ a missing file.
   silently overwrote memory and reset the board (crash record: stack pointer 19 KB below the stack base).
   `patches/nuttx-apps/lua-maxccalls.patch` makes the limit configurable; the rp2040 board sets 40. With it,
   unbounded `pcall` recursion stops at depth 39 with a Lua error, peak stack 18.9 KB, board alive (5.4.8).
-- **NuttX's Lua was never built with 32-bit numbers.** `interpreters/lua/Makefile` tests
-  `CONFIG_INTERPRETERS_LUA_32BITS` but the option is `..._32BIT`, so `-DLUA_32BITS` is never passed; on the
-  board `math.maxinteger` is 9223372036854775807. Left as is (32-bit floats would hurt JSON/timestamps); the
-  langbench Lua numbers used a separate 32-bit build.
+- **32-bit numbers now work (patch `lua-32bit-typo`).** NuttX's Lua never had them: the Makefile tested
+  `INTERPRETERS_LUA_32BITS` while the option is `..._32BIT`, so `-DLUA_32BITS` was never passed; and Lua 5.4.3+
+  ignores that flag anyway (luaconf.h hard-codes `LUA_32BITS 0`), so the patch also flips that line after
+  unpacking. vlua and its libraries pass `-DLUA_32BITS` too, because they include Lua's headers with their own
+  flags. Verified on the RP2040 and the sim: `math.maxinteger` is 2147483647, `math.pi` prints 3.141593.
+  Effects measured: flash 636 -> 628 KB, Lua heap 5-15 KB lower per lpeg chunk, nested-call stack 464 -> 392 B
+  per level (unbounded pcall recursion peaks at 16.1 KB instead of 18.9 KB). Costs, all inherent to float32:
+  numbers have ~7 significant digits (cjson turns 1234567.891 into 1234567.875), every JSON number decodes to a
+  float, integers wrap at 2^31 (time_t seconds in 2038), and **`lfs.touch` rounds times to multiples of 128 s**
+  (lfs.c:815 reads them as `lua_Number`; 1612828875 becomes 1612828928). The lfs suite therefore fails its six
+  exact timestamp comparisons (access/modification after touch); with those relaxed to "within 128 s" it
+  passes (13 checks), and lpeg's suite is `ALL OK` unchanged. `os.time()` and `os.date` are unaffected.
 - vlua now builds **Lua 5.4.8** (NuttX defaults to 5.4.0).
 - Handy while testing: `tools/rp2040-stream.py` (stream a command's output to a log), and sending big files by
   a Lua receiver on stdin (50 KB in 30 s) instead of typing hex into the shell (~9 min).

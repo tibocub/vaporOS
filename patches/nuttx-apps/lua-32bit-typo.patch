@@ -1,0 +1,44 @@
+vaporOS nuttx-apps patch: lua-32bit-typo
+
+Problem:   two bugs keep "Use 32-bit integers and floats" (INTERPRETERS_LUA_32BIT, default y)
+           from ever working.
+           1. Makefile and CMakeLists.txt test CONFIG_INTERPRETERS_LUA_32BITS (an S too many),
+              which never exists, so -DLUA_32BITS is never passed.
+           2. Even when passed, Lua 5.4.3 and newer ignore it: luaconf.h hard-codes
+              "#define LUA_32BITS 0" (5.4.0 tested defined(LUA_32BITS)).
+           Result: Lua is always built with 64-bit integers and doubles.
+Evidence:  RP2040-Zero (Cortex-M0+), vlua with the defaults: math.maxinteger is
+           9223372036854775807 and math.pi prints 3.1415926535898.
+Fix:       use the real option name in Makefile and CMakeLists.txt, and (Makefile only) flip
+           the luaconf.h line once after unpacking when the option is on. Nothing else
+           that includes lua.h may disagree: vlua and its libraries pass -DLUA_32BITS too.
+Upstream:  Part 1 yes (trivial). Part 2 maybe: a sed on a downloaded file is a workaround; a
+           proper fix would pick LUA_INT_TYPE/LUA_FLOAT_TYPE some other way.
+
+diff --git a/interpreters/lua/Makefile b/interpreters/lua/Makefile
+--- a/interpreters/lua/Makefile
++++ b/interpreters/lua/Makefile
+@@ -49,3 +49,3 @@
+ 
+-ifeq ($(CONFIG_INTERPRETERS_LUA_32BITS),y)
++ifeq ($(CONFIG_INTERPRETERS_LUA_32BIT),y)
+ CFLAGS += -DLUA_32BITS
+@@ -82,2 +82,10 @@
+ endif
++
++# Lua 5.4.3 and newer hard-code "#define LUA_32BITS 0" in luaconf.h, so -DLUA_32BITS has no effect there
++# (5.4.0 tests defined(LUA_32BITS), where the flag above is enough). Flip the line once, after unpacking.
++ifeq ($(CONFIG_INTERPRETERS_LUA_32BIT),y)
++context::
++	$(Q) if grep -q '^#define LUA_32BITS[[:space:]]*0' $(LUA_SRC)$(DELIM)luaconf.h 2>/dev/null; then \
++		sed -i 's/^\(#define LUA_32BITS[[:space:]]*\)0/\11/' $(LUA_SRC)$(DELIM)luaconf.h; fi
++endif
+ 
+diff --git a/interpreters/lua/CMakeLists.txt b/interpreters/lua/CMakeLists.txt
+--- a/interpreters/lua/CMakeLists.txt
++++ b/interpreters/lua/CMakeLists.txt
+@@ -53,3 +53,3 @@
+              -DLUA_PROGNAME=\"lua\")
+-  if(CONFIG_INTERPRETERS_LUA_32BITS)
++  if(CONFIG_INTERPRETERS_LUA_32BIT)
+     list(APPEND CFLAGS -DLUA_32BITS)

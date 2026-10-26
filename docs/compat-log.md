@@ -74,6 +74,7 @@ hardcoded-device-path     = 1
 chstat-enosys             = 1
 symlink-api               = 1
 include-nostdinc          = 1
+lua-number-width          = 1
 
 ---- LOGS -------------------------------
 [toybox]
@@ -264,4 +265,7 @@ include-nostdinc          = 1
     Now VAPOROS_VLUA_LPEG_MAXRULES=200 / MAXRECLEVEL=20 (compile-time macros in lpeg).
 (1) exit-reclaims-memory -- Lua's os.exit() skips lua_close and a NuttX task's heap is not reclaimed on exit, so
     every script ending in os.exit() leaked its Lua state (35-40 KB). vlua's os.exit now closes the state.
+(1) lua-number-width -- the "32-bit Lua" setting was a no-op (config typo, then luaconf.h in 5.4.3+); vlua ran
+    64-bit numbers. Fixed by patches/nuttx-apps/lua-32bit-typo.patch. With float32 numbers lfs.touch rounds
+    times to 128 s (lfs.c reads them as lua_Number) and cjson keeps ~7 digits. Not a compat-scan check.
 

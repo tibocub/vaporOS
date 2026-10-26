@@ -33,6 +33,7 @@ run it. Each board lists the patches it needs under `[patches]`.
 
 | patch | what | upstream? |
 |---|---|---|
+| `lua-32bit-typo` | `interpreters/lua` tested `CONFIG_INTERPRETERS_LUA_32BITS` but the option is `..._32BIT`, so the "32-bit integers and floats" setting never took effect; and Lua 5.4.3+ ignores `-DLUA_32BITS` (luaconf.h hard-codes 0), so the Makefile also flips that line once after unpacking. | Typo part **yes**. The sed on luaconf.h is a workaround; upstream would want a cleaner way to pick the number types. |
 | `lua-maxccalls` | `INTERPRETERS_LUA_MAXCCALLS` passed as `-DLUAI_MAXCCALLS`. Lua's default of 200 nested C calls needs ~100 KB of stack; a small task stack (vlua: 24 KB, 464 B per nested pcall) overflows silently with no guard page and resets the board. | **Maybe.** Small and generic; needs the measurements (docs/lua-runtime.md) reproduced on a second port. Only honoured by Lua 5.4.3+. |
 | `readline-eof-ctrl-d` | Ctrl-D on an empty line returns EOF from readline | **Likely yes**; make it configurable if asked. |
 | `termcurses-read-retry` | sleep and retry instead of returning -1 on an empty key read | **No.** Written for a wrong theory of the vi hang; harmless but unproven. Remove unless a failure is shown. |

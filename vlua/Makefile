@@ -10,6 +10,12 @@ MODULE    = $(CONFIG_VAPOROS_VLUA)
 # has downloaded it, hence the Kconfig dependency below.
 CFLAGS += ${INCDIR_PREFIX}$(APPDIR)/interpreters/lua/lua
 
+# vlua and the libraries below include Lua's headers and must see the same number types as the interpreter
+# built by interpreters/lua (whose Makefile passes this itself, but only to its own objects).
+ifeq ($(CONFIG_INTERPRETERS_LUA_32BIT),y)
+CFLAGS += -DLUA_32BITS
+endif
+
 MAINSRC = vlua_main.c
 CSRCS = vapor_core.c vlua_libs.c
 
