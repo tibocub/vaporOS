@@ -52,6 +52,16 @@ config VAPOROS_VLUA_LPEG_MAXRULES
 		it below about (vlua stack size - 10 KB) / 45. Also the most rules
 		a grammar may have.
 
+config VAPOROS_VLUA_LPEG_MAXRECLEVEL
+	int "lpeg: maximum capture nesting (MAXRECLEVEL)"
+	depends on VAPOROS_VLUA_LPEG
+	default 200
+	---help---
+		Collecting nested captures recurses once per level, and lpeg's
+		pushcapture reserves a 572-byte frame (Cortex-M0+), so upstream's 200
+		needs over 100 KB of stack and resets the board when a pattern nests
+		captures that deep. Keep it below about (vlua stack size - 10 KB) / 700.
+
 config VAPOROS_VLUA_CJSON
 	bool "cjson -- JSON encode/decode (../lua-cjson)"
 	default n
