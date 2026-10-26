@@ -139,3 +139,22 @@ Treat as an experiment on the simulator first.
 - Running NuttX natively as a first-class Windows/macOS product.
 - LuaJIT.
 - Binary compatibility of native programs across architectures.
+
+## Lua C libraries (implemented 2026-10-26)
+
+`features/lua-libs.conf` links three unmodified upstream libraries into `vlua`:
+`lfs` (luafilesystem), `lpeg` and `cjson`. Each has a `CONFIG_VAPOROS_VLUA_*`
+switch (vlua/Kconfig); sources are sibling checkouts fetched by `setup.sh`, like
+vaporshell. No dynamic linking, so `vlua/vlua_libs.c` puts them in
+`package.preload` and `require("lfs")` works as on a desktop Lua. A new library
+is one Kconfig bool, three Makefile lines and one table entry.
+
+Verified on the sim (require + basic calls) and compiled for the RP2040 (about
+27 KB of flash for all three: lpeg 15, cjson 8, lfs 4). **Not run on the
+board** (none attached), so RAM use and littlefs behaviour there are unchecked.
+
+Known gaps, all of them NuttX, not the libraries (see compat-log.md):
+`lfs.touch` and mtimes need a filesystem with `chstat` (not FAT/tmpfs; littlefs
+only with `FS_LITTLEFS_ATTR_UPDATE`), `lfs.lock_dir` needs `symlink`, and
+`dev`/`ino` are always 0.
+

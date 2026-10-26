@@ -46,6 +46,7 @@ kconfig-silent-drop       = 4
 inotify                   = 3
 getdelim-uninit-size      = 2
 shared-globals            = 2
+st-ino-identity           = 2
 link-chmod-enosys         = 2
 fork-call                 = 2
 exec-family               = 2
@@ -60,7 +61,6 @@ statfs-frsize             = 1
 chroot-call               = 1
 app-name-collision        = 1
 regex-disabled            = 1
-st-ino-identity           = 1
 lseek-seekable-probe      = 1
 strftime-zone-name        = 1
 utsname-field-stride      = 1
@@ -71,6 +71,9 @@ fnmatch-pathname-ignored  = 1
 underscore-exit           = 1
 exit-reclaims-memory      = 1
 hardcoded-device-path     = 1
+chstat-enosys             = 1
+symlink-api               = 1
+include-nostdinc          = 1
 
 ---- LOGS -------------------------------
 [toybox]
@@ -235,3 +238,20 @@ hardcoded-device-path     = 1
     struct stat when a stat "succeeded" without filling it (now memset).
     Not a compat-scan check: it is a missing initialisation, not a call.
 
+[lua-libs (lfs 1.9.0+6, lpeg 1.1.0, lua-cjson 2.1.0+18, in vlua)]
+(1) chstat-enosys -- lfs.touch() (utime) returns "Invalid system call
+    number" on the sim's FAT /tmp: FAT, tmpfs, smartfs, romfs and procfs leave
+    chstat NULL (read in nuttx/fs/*; only hostfs, nfs, rpmsgfs, userfs,
+    littlefs with CONFIG_FS_LITTLEFS_ATTR_UPDATE implement it). Not worked
+    around: lfs returns nil, err. FAT also reports mtime 0. New compat-scan
+    check; it also covers the chmod ENOSYS seen under link-chmod-enosys.
+(1) symlink-api -- lfs.lock_dir() (a symlink() lock) fails with ENOSYS on /tmp;
+    lfs.symlinkattributes() falls back to the lstat data. Both return nil, err
+    instead of crashing, so nothing was changed.
+(1) st-ino-identity -- lfs.attributes() reports dev=0 ino=0 for every file
+    (checked on the sim: /tmp/x, /tmp/y, /etc), so scripts must not use them to
+    tell two files apart. The scan's lfs.c:200 hit is Win32-only code, a
+    false positive.
+(1) include-nostdinc -- vlua could not use vapor-nostdinc.mk once cjson was
+    added (cjson includes <math.h>, which the toolchain provides, not NuttX).
+    Same reason NuttX's own interpreters/lua is built without it.

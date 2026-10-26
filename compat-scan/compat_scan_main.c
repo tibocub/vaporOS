@@ -436,6 +436,21 @@ static const struct pattern_s pat_symlink[] =
   { NULL, 0 }
 };
 
+static const struct pattern_s pat_chstat[] =
+{
+  { "utime", MATCH_CALL },
+  { "utimes", MATCH_CALL },
+  { "utimens", MATCH_CALL },
+  { "lutimens", MATCH_CALL },
+  { "futimens", MATCH_CALL },
+  { "futimes", MATCH_CALL },
+  { "chmod", MATCH_CALL },
+  { "fchmod", MATCH_CALL },
+  { "chown", MATCH_CALL },
+  { "fchown", MATCH_CALL },
+  { NULL, 0 }
+};
+
 static const struct pattern_s pat_hasinclude[] =
 {
   { "__has_include", MATCH_CALL },
@@ -695,6 +710,16 @@ static const struct check_s CHECKS[] =
     "at the VFS layer at all (struct mountpt_operations has no "
     "symlink/link fields) -- confirmed directly, not hostfs-specific.",
     pat_symlink
+  },
+  {
+    "chstat-enosys", SEV_REVIEW,
+    "utime()/utimens()/chmod()/chown() go through the filesystem's "
+    "chstat/fchstat operation, which FAT, tmpfs, smartfs, romfs and procfs "
+    "leave NULL, so they fail with ENOSYS there (checked in fs/*; only "
+    "hostfs, littlefs with FS_LITTLEFS_ATTR_UPDATE, nfs, rpmsgfs and a few "
+    "others implement it). Make sure the caller reports the error instead "
+    "of treating it as fatal -- e.g. lfs.touch() and `touch -t`.",
+    pat_chstat
   },
   {
     "has-include-probe", SEV_REVIEW,

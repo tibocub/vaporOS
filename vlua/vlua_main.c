@@ -20,6 +20,8 @@
 
 #include "vapor_core.h"
 
+void vlua_libs_register(lua_State *L);
+
 /*
  * Sets the global `arg` table the same way the real `lua` CLI does:
  * arg[1], arg[2], ... are the script's own arguments (argv[2] onward
@@ -197,6 +199,7 @@ int main(int argc, FAR char *argv[])
   lua_setglobal(L, "vapor");
 
   vapor_core_register(L);
+  vlua_libs_register(L);
 
   int status;
 

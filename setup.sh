@@ -40,6 +40,20 @@ if [ ! -d vaporshell ]; then
   git clone https://github.com/tibocub/vaporshell.git
 fi
 
+# Lua C libraries for vlua (features/lua-libs.conf): unmodified upstream
+# sources next to this repo, pinned to the versions that were ported.
+if [ ! -d luafilesystem ]; then
+  git clone https://github.com/lunarmodules/luafilesystem.git
+  git -C luafilesystem checkout -q 146ab458e821cd7617892099fe8e6e399b46185c
+fi
+if [ ! -d lua-cjson ]; then
+  git clone https://github.com/mpx/lua-cjson.git
+  git -C lua-cjson checkout -q 718f27293a981fb5e9e662e9aec0b7cf78317da6
+fi
+if [ ! -d lpeg-1.1.0 ]; then
+  curl -L https://www.inf.puc-rio.br/~roberto/lpeg/lpeg-1.1.0.tar.gz | tar xz
+fi
+
 # vaporOS's changes to NuttX itself (see patches/UPSTREAM.md); idempotent.
 "$DIR/tools/apply-patches.sh" || echo "WARNING: some patches did not apply" >&2
 

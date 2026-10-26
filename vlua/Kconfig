@@ -23,4 +23,31 @@ config VAPOROS_VLUA_STACKSIZE
 	int "stack size"
 	default DEFAULT_TASK_STACKSIZE
 
+menu "Lua C libraries (sources live next to this repo, see setup.sh)"
+
+config VAPOROS_VLUA_LFS
+	bool "lfs -- LuaFileSystem (../luafilesystem)"
+	default n
+	---help---
+		require("lfs"): attributes, dir, mkdir, rmdir, touch, setmode...
+		lfs.symlinkattributes and lfs.lock_dir need symlinks/readlink, which
+		most NuttX filesystems lack; they return nil, err there.
+
+config VAPOROS_VLUA_LPEG
+	bool "lpeg -- parsing expression grammars (../lpeg-1.1.0)"
+	default n
+	---help---
+		require("lpeg"). Pure ANSI C. re.lua (lpeg's regex-like layer) is
+		plain Lua, install it with the other pure-Lua libraries.
+
+config VAPOROS_VLUA_CJSON
+	bool "cjson -- JSON encode/decode (../lua-cjson)"
+	default n
+	---help---
+		require("cjson"). About 8 KB of flash on the RP2040 (the bundled
+		dtoa.c is not used; numbers go through libc snprintf/strtod).
+		Like upstream, every decoded number is a Lua float.
+
+endmenu
+
 endif
