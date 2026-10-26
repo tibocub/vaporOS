@@ -27,6 +27,7 @@ run it. Each board lists the patches it needs under `[patches]`.
 | `rp2040-usbdev-w1c-and-watchdog` | (1) clear the write-1-to-clear status registers by writing only the handled bit; (2) a 10 ms poll that completes/re-arms a bulk endpoint whose completion was lost | (1) **Yes** after a second review against the datasheet. (2) **No**: a workaround, found while chasing the CDC-ACM race above. Neither was shown on its own to fix anything. Drop (2) and re-test under load before upstreaming (1). |
 | `rp2040-flash-littlefs` | LittleFS on a fixed flash window, mounted at a configurable path, surviving firmware updates | **Maybe.** Overlaps existing SmartFS/ROMFS options; upstream would want one flash-fs configuration, not a third. |
 | `rp2040-crashdump-waveshare` | crash record (pc, lr, regs, stack bounds, task) in the top of SRAM, read back after the watchdog reset | **Maybe**, generalised into a reusable RAM crash-record helper. |
+| `cdcacm-reset-on-1200bps` | Setting the CDC-ACM line rate to exactly 1200 bps calls `board_reset(1)` (the Arduino "1200 baud touch"), from the USB interrupt, so a board whose application is hung or owns the console can be reflashed without BOOT. | **Maybe.** De-facto convention (Arduino, Pico SDK, Adafruit); NuttX would want it generic (a callback or boardctl mode) rather than `board_reset(1)`. Verified on the RP2040-Zero. |
 
 ## nuttx-apps (apache/nuttx-apps, releases/13.0)
 

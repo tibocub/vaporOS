@@ -1,0 +1,75 @@
+vaporOS NuttX patch: cdcacm-reset-on-1200bps
+
+Problem:   When an application owns the USB console (or is hung), `reboot 1` typed
+           into the shell never arrives, so the board cannot be sent to the boot
+           loader for reflashing without unplugging it while holding BOOT.
+Fix:       The Arduino "1200 baud touch": when the host sets the CDC-ACM line rate
+           to exactly 1200 bps, the driver calls board_reset(1) (on the RP2040:
+           reset_usb_boot, see rp2040-reset-bootsel-watchdog.patch). It runs in the
+           USB interrupt, so it works even when every task is stuck. Behind
+           CONFIG_CDCACM_RESET_ON_1200BPS (default n; the usb-cdcacm console
+           descriptor turns it on). Host side:  stty -F /dev/ttyACM0 1200
+           (tools/rp2040-flash.sh does this).
+Upstream:  MAYBE. It is a de-facto convention (Arduino, Pico SDK stdio_usb,
+           Adafruit); NuttX would want it generic rather than via board_reset(1).
+
+Apply: git -C ../nuttx apply ../vaporOS/patches/nuttx/cdcacm-reset-on-1200bps.patch   (setup.sh does this)
+
+diff --git a/drivers/usbdev/cdcacm.c b/drivers/usbdev/cdcacm.c
+--- a/drivers/usbdev/cdcacm.c
++++ b/drivers/usbdev/cdcacm.c
+@@ -44,6 +44,9 @@
+ #include <nuttx/wdog.h>
+ #include <nuttx/arch.h>
+ #include <nuttx/serial/serial.h>
++#ifdef CONFIG_CDCACM_RESET_ON_1200BPS
++#  include <nuttx/board.h>
++#endif
+ 
+ #include <nuttx/usb/usb.h>
+ #include <nuttx/usb/cdc.h>
+@@ -1858,6 +1861,23 @@
+                   {
+                     memcpy(&priv->linecoding,
+                            dataout, SIZEOF_CDC_LINECODING);
++
++#ifdef CONFIG_CDCACM_RESET_ON_1200BPS
++                    /* vaporOS: the Arduino "1200 baud touch". Setting the
++                     * line rate to exactly 1200 bps (stty -F /dev/ttyACM0
++                     * 1200) reboots into the boot loader, from interrupt
++                     * context, so a board whose application is hung can
++                     * still be reflashed without touching it.
++                     */
++
++                    if (priv->linecoding.baud[0] == 0xb0 &&
++                        priv->linecoding.baud[1] == 0x04 &&
++                        priv->linecoding.baud[2] == 0 &&
++                        priv->linecoding.baud[3] == 0)
++                      {
++                        board_reset(1);
++                      }
++#endif
+                   }
+ 
+                 /* Respond with a zero length packet */
+diff --git a/drivers/usbdev/Kconfig b/drivers/usbdev/Kconfig
+--- a/drivers/usbdev/Kconfig
++++ b/drivers/usbdev/Kconfig
+@@ -682,6 +682,17 @@
+ 		than CDCACM_TXBUFSIZE-1, since a request larger than the TX
+ 		buffer can never be sent.
+ 
++config CDCACM_RESET_ON_1200BPS
++	bool "Reboot to the boot loader when the host sets 1200 baud"
++	default n
++	depends on BOARDCTL_RESET
++	---help---
++		The Arduino "1200 baud touch": when the host sets the line rate to
++		exactly 1200 bps the driver calls board_reset(1), which a board can
++		implement as "enter the ROM boot loader" (the RP2040 does). Works
++		from the USB interrupt, so it also recovers a board whose
++		application is hung.
++
+ config CDCACM_DISABLE_RXBUF
+ 	bool "CDC/ACM use usb rx req buf directly"
+ 	default n

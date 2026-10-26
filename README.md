@@ -31,6 +31,18 @@ Basic custom Lua implementation with the vapor API activated by default (just te
 
 ---
 
+## FLASHING (humans and AI agents)
+
+    make -f dev.mk build BOARD=rp2040     # compile  -> ../nuttx/nuttx.uf2
+    make -f dev.mk flash BOARD=rp2040     # reboots a RUNNING board into BOOTSEL by itself, copies the UF2
+    make -f dev.mk run   BOARD=rp2040     # flash + serial console
+
+No button presses: the firmware reboots into the boot loader when the host sets the USB serial port to **1200 baud**
+(`stty -F /dev/ttyACM0 1200`), even if the application is hung. Details, fallbacks and how to script the console:
+[docs/rp2040.md](docs/rp2040.md#reflashing-without-touching-the-board-humans-and-ai-agents).
+
+---
+
 ## WHY NUTTX
 
 Real POSIX conformance out of the box -- `chdir`/`getcwd`, `lseek`,

@@ -1,10 +1,20 @@
 #!/usr/bin/env bash
-# rp2040-flash.sh [uf2] -- copy a UF2 to the board's RPI-RP2 drive. If the
-# board is running a vaporOS build, `reboot 1` is sent first to enter BOOTSEL.
+# rp2040-flash.sh [uf2] -- copy a UF2 to the board's RPI-RP2 drive. A running board is sent to BOOTSEL
+# first: 1200 baud touch (works even when hung), else Ctrl-C + `reboot 1` in the shell. Already in BOOTSEL: just copies.
 set -euo pipefail
 UF2="${1:-$(dirname "$0")/../../nuttx/nuttx.uf2}"
 . "$(dirname "$0")/rp2040-tty.sh"
-if [ -n "$(tty)" ]; then
+bootsel_present() { lsblk -rno LABEL | grep -qx RPI-RP2; }
+if ! bootsel_present && [ -n "$(tty)" ]; then
+  # 1. The 1200 baud touch (patches/nuttx/cdcacm-reset-on-1200bps.patch): handled in the USB interrupt, so it
+  #    works whatever the board is doing, hung apps included. Firmware without the patch just ignores it.
+  stty -F "$(tty)" 1200 >/dev/null 2>&1 || true
+  for _ in 1 2 3 4 5 6; do bootsel_present && break; sleep 0.5; done
+fi
+if ! bootsel_present && [ -n "$(tty)" ]; then
+  # 2. Older firmware: `reboot 1` typed into the shell. An app that owns the console (a vaporUI program)
+  #    never sees it, so Ctrl-C first, which such apps treat as quit.
+  timeout 3 python3 -I -c 'import os,sys,time; fd=os.open(sys.argv[1],os.O_RDWR|os.O_NOCTTY); os.write(fd,b"\x03\x03"); time.sleep(1)' "$(tty)" >/dev/null 2>&1 || true
   timeout 10 python3 -I "$(dirname "$0")/rp2040-term.py" -d "$(tty)" -t 0.3 'reboot 1' >/dev/null 2>&1 || true
 fi
 for _ in $(seq 1 15); do
