@@ -32,15 +32,18 @@ Basic custom Lua implementation with the vapor API activated by default (just te
 ### Lua on vaporOS (status 2026-10-26)
 
 `vlua` runs Lua **5.4.8** (NuttX's default, 5.4.0, is the buggy first release) on the sim and on the
-RP2040-Zero, where it gets a 24 KB stack and about 145 KB of heap. Libraries are selected at build time like any
-other feature (`features/lua-libs.conf`, enabled on `sim-nsh` and `rp2040-zero`) and preloaded, so `require`
-works without files:
+RP2040-Zero, where it gets a 24 KB stack and about 145 KB of heap. Lua libraries written in C are selected at build
+time like any other feature (`features/lua-libs.conf`, enabled on `sim-nsh` and `rp2040-zero`) and preloaded, so
+`require` works without files:
 
-| library | version | flash | Lua heap per `require` | notes |
-|---|---|---|---|---|
-| `lpeg` | 1.1.0 | 15 KB | 2.3 KB | own test suite passes on the board (chunked and scaled, `tools/lpeg-board-test/`) |
-| `cjson` | lua-cjson | 8 KB | 1.8 KB | |
-| `lfs` | 1.9.0 | 4 KB | 2.6 KB | own suite passes on the board; no symlinks, no `.`/`..`, `touch` needs littlefs (ENOSYS on FAT/tmpfs) |
+| library | version   | flash | Lua heap per `require` | notes                                                                                                 |
+|---------|-----------|-------|------------------------|-------------------------------------------------------------------------------------------------------|
+| `lpeg`  | 1.1.0     | 15 KB | 2.3 KB                 | own test suite passes on the board (chunked and scaled, `tools/lpeg-board-test/`)                     |
+| `cjson` | lua-cjson | 8 KB  | 1.8 KB                 |                                                                                                       |
+| `lfs`   | 1.9.0     | 4 KB  | 2.6 KB                 | own suite passes on the board; no symlinks, no `.`/`..`, `touch` needs littlefs (ENOSYS on FAT/tmpfs) |
+
+Pure Lua libraries will be expected to be compatible but right now vaporOS don't have a package manager or
+a luarocks equivalent (planned) so there is currently no way of getting other Lua libs beside manual download.
 
 Sources are sibling checkouts that `setup.sh` fetches and pins. Limits you will meet on a 24 KB stack:
 lpeg grammars are capped at 200 rules and capture nesting at 20 (`VAPOROS_VLUA_LPEG_MAXRULES`/`_MAXRECLEVEL`;
@@ -53,20 +56,20 @@ findings are in `docs/compat-log.md`. Details and measurements: [docs/lua-runtim
 and Lua 5.4.3+ ignores the flag; `lua-32bit-typo` fixes both so it can be turned on). We measured both on the
 RP2040 and kept 64-bit so scripts and libraries from the Lua ecosystem behave as they do everywhere else:
 
-| RP2040, one run each | 32-bit | 64-bit |
-|---|---|---|
-| 300k integer-loop steps | 0.90 s | 2.43 s |
-| 60k `math.sin` | 23.1 s | 7.4 s |
+| RP2040, one run each                     | 32-bit               | 64-bit               |
+|------------------------------------------|----------------------|----------------------|
+| 300k integer-loop steps                  | 0.90 s               | 2.43 s               |
+| 60k `math.sin`                           | 23.1 s               | 7.4 s                |
 | fib(23) / strings / sorting 4000 numbers | 0.33 / 0.86 / 0.48 s | 0.36 / 0.81 / 0.50 s |
-| heap for a 4000-number table | 48 KB | 83 KB |
-| flash | 628 KB | 636 KB |
+| heap for a 4000-number table             | 48 KB                | 83 KB                |
+| flash                                    | 628 KB               | 636 KB               |
 
 32-bit saves RAM and integer speed but is slower on floats, keeps ~7 digits (JSON numbers, timestamps), wraps
-integers at 2^31 and makes `lfs.touch` round times to 128 s. We switch only if RAM or speed become impractical
+integers at 2^31 and makes `lfs.touch` round times to 128 s. We'll switch only if RAM or speed become impractical
 (`CONFIG_INTERPRETERS_LUA_32BIT=y` in `features/lua.conf`).
 
-Known: with the default collector pace lfs's directory-stress test runs out of memory on a booted board
-(free heap is ~175 KB, peak garbage does not fit); `collectgarbage("incremental", 100, 400)` fixes it.
+vlua collects garbage early (`lua_gc(L, LUA_GCINC, 100, 400)`, vlua_main.c): RAM is scarcer than CPU, and lfs's own suite
+needs it to fit. Cost measured on the RP2040: the string-building benchmark goes from 0.8 s to 4.8 s, the others are unchanged.
 Not yet: a package manager (deferred), cjson's own test suite, the sim with the final 64-bit build re-run.
 
 ---

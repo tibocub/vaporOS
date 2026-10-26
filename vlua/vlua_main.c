@@ -220,6 +220,10 @@ int main(int argc, FAR char *argv[])
 
   luaL_openlibs(L);
 
+  /* RAM is the scarce resource, not CPU: collect as soon as garbage equals live data (default waits
+   * for 2x) and take bigger steps. Needed for lfs's own test suite to fit on the RP2040. */
+  lua_gc(L, LUA_GCINC, 100, 400, 0);
+
   lua_getglobal(L, "os");
   lua_pushcfunction(L, vlua_os_exit);
   lua_setfield(L, -2, "exit");
