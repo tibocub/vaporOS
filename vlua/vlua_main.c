@@ -235,16 +235,30 @@ int main(int argc, FAR char *argv[])
   vapor_core_register(L);
   vlua_libs_register(L);
 
-  /* No "./" prefix: on the sim's filesystem fopen("./x") fails while fopen("x") works.
-   * Project libraries first so a project can pin its own versions, then the system-wide directory. */
+  /* Project libraries first so a project can pin its own versions, then the system-wide directory.
+   * "Project" is the script's directory (the current directory for -e and the REPL). No "./" prefix:
+   * on the sim's filesystem fopen("./x") fails while fopen("x") works. */
   if (getenv("LUA_PATH_5_4") == NULL && getenv("LUA_PATH") == NULL)
     {
+      const char *script = (argc > 1 && argv[1][0] != '-') ? argv[1] : "";
+      const char *slash = strrchr(script, '/');
+      int dirlen = slash != NULL ? (int)(slash - script) + 1 : 0;
+
+      while (dirlen >= 2 && strncmp(script, "./", 2) == 0)
+        {
+          script += 2;
+          dirlen -= 2;
+        }
+
       lua_getglobal(L, "package");
-      lua_pushliteral(L,
-        "lua_modules/?.lua;lua_modules/?/init.lua;"
+      lua_pushlstring(L, script, dirlen);
+      luaL_gsub(L,
+        "@lua_modules/?.lua;@lua_modules/?/init.lua;"
         CONFIG_VAPOROS_VLUA_LIBDIR "/?.lua;"
         CONFIG_VAPOROS_VLUA_LIBDIR "/?/init.lua;"
-        "?.lua;?/init.lua");
+        "@?.lua;@?/init.lua",
+        "@", lua_tostring(L, -1));
+      lua_remove(L, -2);
       lua_setfield(L, -2, "path");
       lua_pop(L, 1);
     }

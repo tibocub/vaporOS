@@ -271,5 +271,6 @@ dot-slash-path            = 1
     times to 128 s (lfs.c reads them as lua_Number) and cjson keeps ~7 digits. Not a compat-scan check.
 (1) dot-slash-path -- on the sim, fopen("./lua_modules/x.lua") fails while fopen("lua_modules/x.lua") works
     (littlefs on the board accepts both). Found while adding the Lua module search path; vlua's package.path uses
-    plain relative paths. Not a compat-scan check yet.
+    plain relative paths. The same quirk makes `vlua ./x.lua` fail on the sim ("Not a directory"). Not a compat-scan
+    check yet.
 

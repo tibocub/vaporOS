@@ -202,3 +202,13 @@ a missing file.
 - Handy while testing: `tools/rp2040-stream.py` (stream a command's output to a log), and sending big files by
   a Lua receiver on stdin (50 KB in 30 s) instead of typing hex into the shell (~9 min).
 
+
+## Module search path
+
+`require` looks in `lua_modules/` next to the script (current directory for `-e`/REPL), then
+`CONFIG_VAPOROS_VLUA_LIBDIR` (per board; `/flash/lib/lua` on the RP2040), then the script's directory; `LUA_PATH`
+replaces it. Verified on the RP2040 (system module found from any directory, a project's `lua_modules` wins over
+the system copy, a script elsewhere uses its own project) and on the sim (project directory, relative and absolute
+script paths). Shortcut: the path is fixed when `vlua` starts, so a script cannot change which project it belongs
+to except by editing `package.path`. Native libraries are not searchable: no dynamic linking, they are build-time
+features.

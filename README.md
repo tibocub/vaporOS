@@ -68,16 +68,17 @@ RP2040 and kept 64-bit so scripts and libraries from the Lua ecosystem behave as
 integers at 2^31 and makes `lfs.touch` round times to 128 s. We'll switch only if RAM or speed become impractical
 (`CONFIG_INTERPRETERS_LUA_32BIT=y` in `features/lua.conf`).
 
-**Where `require` looks** (`package.path`, built in `vlua_main.c`): `lua_modules/` in the current directory (project
-libraries, so a project can pin its own versions), then the system-wide directory `VAPOROS_VLUA_LIBDIR`
-(default `/usr/lib/lua`, `/flash/lib/lua` on the RP2040 so it survives reflashing), then the current directory;
-each as `?.lua` and `?/init.lua`. Setting `LUA_PATH` replaces all of it. Only pure-Lua code can live there: C
-libraries (lfs, lpeg, cjson) are linked in at build time. A future package manager only has to download files
-into one of those two directories.
+**Where `require` looks** (`package.path`, built in `vlua_main.c`): `lua_modules/` next to the script being run
+(the current directory for `-e` and the REPL), so a project can pin its own versions and works from any
+directory; then the system-wide directory `VAPOROS_VLUA_LIBDIR` (default `/usr/lib/lua`, `/flash/lib/lua` on
+the RP2040 so it survives reflashing); then the script's own directory. Each as `?.lua` and `?/init.lua`.
+Setting `LUA_PATH` replaces all of it. Only pure-Lua code can live there: C libraries (lfs, lpeg, cjson) are
+linked in at build time. A future package manager only has to download files into one of those two directories.
+Sim quirk: paths starting with `./` fail to open there (`vlua ./x.lua`, see `docs/compat-log.md`); use `x.lua`.
 
 vlua collects garbage early (`lua_gc(L, LUA_GCINC, 100, 400)`, vlua_main.c): RAM is scarcer than CPU, and lfs's own suite
 needs it to fit. Cost measured on the RP2040: the string-building benchmark goes from 0.8 s to 4.8 s, the others are unchanged.
-Not yet: a package manager (deferred), cjson's own test suite, the sim with the final 64-bit build re-run.
+Not yet: a package manager (deferred), cjson's own test suite, the system-wide directory on the sim (no persistent\nlocation for it yet).
 
 ---
 
