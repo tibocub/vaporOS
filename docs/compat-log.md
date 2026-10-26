@@ -39,12 +39,12 @@ a "not yet automated" list.
 
 ---- COUNTER ----------------------------
 xattr                     = 11
+task-stack-size           = 5
 raw-syscall               = 4
 mount-table-introspection = 4
 environ-replace           = 4
 kconfig-silent-drop       = 4
 inotify                   = 3
-task-stack-size           = 3
 getdelim-uninit-size      = 2
 shared-globals            = 2
 st-ino-identity           = 2
@@ -53,6 +53,7 @@ fork-call                 = 2
 exec-family               = 2
 arg-max-sysconf           = 2
 dot-path-in-fat           = 2
+exit-reclaims-memory      = 2
 uninitialised-stat-buffer = 2
 paths-h                   = 1
 has-include-probe         = 1
@@ -69,7 +70,6 @@ open-dot                  = 1
 environ-null-when-empty   = 1
 fnmatch-pathname-ignored  = 1
 underscore-exit           = 1
-exit-reclaims-memory      = 1
 hardcoded-device-path     = 1
 chstat-enosys             = 1
 symlink-api               = 1
@@ -259,4 +259,9 @@ include-nostdinc          = 1
 (1) task-stack-size -- Lua's 200-level C-call limit assumes a stack of ~100 KB; vlua's 24 KB held ~45 levels
     (464 B each), so deep pcall nesting overflowed the stack with no guard and reset the board. Limit now set
     per board (lua-maxccalls patch). Not a compat-scan check.
+(2) task-stack-size -- lpeg recurses MAXRULES (1000, ~40 B/level) to detect a left-recursive rule and
+    MAXRECLEVEL (200, 572 B/level) for nested captures; both overflow vlua's 24 KB stack and reset the board.
+    Now VAPOROS_VLUA_LPEG_MAXRULES=200 / MAXRECLEVEL=20 (compile-time macros in lpeg).
+(1) exit-reclaims-memory -- Lua's os.exit() skips lua_close and a NuttX task's heap is not reclaimed on exit, so
+    every script ending in os.exit() leaked its Lua state (35-40 KB). vlua's os.exit now closes the state.
 

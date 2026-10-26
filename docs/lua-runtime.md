@@ -166,14 +166,20 @@ a missing file.
 
 - **lfs's own suite passes** (`Ok!`, 13 checks) on a fresh boot, after `mkdir /tmp` (the test hardcodes it and
   the board's `/tmp` does not survive a reboot). Its symlink/hard-link checks are skipped by the suite itself.
-- **lpeg's suite does not fit as one file**: compiling the 50 KB script needs more than the ~145 KB of heap a
-  Lua state gets. It was split into 10 chunks (top-level locals made global; passes on the host the same way).
-  Chunks 1 and 2 pass (35 and 37 KB of Lua heap). **Chunk 3 resets the board**, on Lua 5.4.0 and on 5.4.8: the
-  first statement that does it is `m.match({ m.V(1) * 'a' }, "a")`, lpeg's left-recursion error. The same call
-  raises the right error on the NuttX simulator (x86-64), so the cause is specific to the 32-bit Cortex-M0+
-  target. Not yet narrowed (error paths `A`-`E` of `t6.lua` were never run); the crash record showed a wild
-  pointer inside `luaH_getshortstr`, not a stack overflow. Chunks 4-10 are untested on the board (they pass on
-  the host). A test needing 65535 captures ("large dynamic Cc") cannot fit in the RAM and is left out.
+- **lpeg's suite passes on the board, chunked and scaled** (`tools/lpeg-board-test/`, `ALL OK`, peak stack 11.8 KB,
+  Lua heap at most 75 KB). It does not fit as one file: compiling the 50 KB script needs more than the ~145 KB a Lua
+  state gets, so it runs in 10 chunks (top-level locals made global; also verified on the host). Eight tests had to
+  shrink or go because of RAM or stack (table in the README there), not because of a defect.
+- **Two lpeg resets were stack overflows, found with the crash record and `objdump`, not Lua bugs** (the same
+  crash happened on Lua 5.4.0 and 5.4.8): (1) left-recursion detection recurses `MAXRULES` (1000) levels at ~40
+  bytes each, ~45 KB; (2) collecting nested captures recurses `MAXRECLEVEL` (200) levels with a 572-byte frame.
+  Both are compile-time macros, now `VAPOROS_VLUA_LPEG_MAXRULES` (200) and `..._MAXRECLEVEL` (20). A grammar can
+  have at most 200 rules and captures nest at most 20 deep; 25 nested gives the error "subcapture nesting too
+  deep" instead of a reset. Building a pattern nested 300 deep still recurses 300 C levels in the compiler and
+  would still overflow: lpeg has no limit for that, so patterns that deep are unsupported on 24 KB.
+- **`os.exit()` leaked the whole Lua state.** A NuttX task's heap is not reclaimed at exit and Lua's `os.exit`
+  skips `lua_close` by default, so each failed test run lost 35-40 KB of the 242 KB heap until reboot (it looked
+  like a mysterious shrinking heap). `vlua` now replaces `os.exit` with a version that closes the state.
 - **The 24 KB `vlua` stack held only ~45 nested C calls** (pcall in pcall: 480 B per level on 5.4.0, 464 B on
   5.4.8, measured with `/proc/self/stack`), but Lua allows 200, and there is no stack guard: deep nesting
   silently overwrote memory and reset the board (crash record: stack pointer 19 KB below the stack base).

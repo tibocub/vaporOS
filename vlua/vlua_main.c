@@ -8,6 +8,7 @@
 
 #include <nuttx/config.h>
 #include <stdbool.h>
+#include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
@@ -29,6 +30,30 @@ void vlua_libs_register(lua_State *L);
  * vapor script has no way to receive command-line arguments at all --
  * fine for a demo, not fine for "build any kind of program".
  */
+/*
+ * os.exit() that closes the state. Lua's own os.exit skips lua_close unless
+ * asked to, and a NuttX task's heap is not reclaimed when it exits (one
+ * shared heap), so every script ending in os.exit() leaked its whole Lua
+ * state -- a failed test run lost 35-40 KB of a 242 KB heap until reboot.
+ */
+
+static int vlua_os_exit(lua_State *L)
+{
+  int status;
+
+  if (lua_isboolean(L, 1))
+    {
+      status = lua_toboolean(L, 1) ? EXIT_SUCCESS : EXIT_FAILURE;
+    }
+  else
+    {
+      status = (int)luaL_optinteger(L, 1, EXIT_SUCCESS);
+    }
+
+  lua_close(L);
+  exit(status);
+}
+
 static void vlua_setup_args(lua_State *L, int argc, FAR char *argv[])
 {
   int i;
@@ -194,6 +219,11 @@ int main(int argc, FAR char *argv[])
     }
 
   luaL_openlibs(L);
+
+  lua_getglobal(L, "os");
+  lua_pushcfunction(L, vlua_os_exit);
+  lua_setfield(L, -2, "exit");
+  lua_pop(L, 1);
 
   lua_newtable(L);
   lua_setglobal(L, "vapor");
