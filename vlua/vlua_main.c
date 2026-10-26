@@ -235,6 +235,20 @@ int main(int argc, FAR char *argv[])
   vapor_core_register(L);
   vlua_libs_register(L);
 
+  /* No "./" prefix: on the sim's filesystem fopen("./x") fails while fopen("x") works.
+   * Project libraries first so a project can pin its own versions, then the system-wide directory. */
+  if (getenv("LUA_PATH_5_4") == NULL && getenv("LUA_PATH") == NULL)
+    {
+      lua_getglobal(L, "package");
+      lua_pushliteral(L,
+        "lua_modules/?.lua;lua_modules/?/init.lua;"
+        CONFIG_VAPOROS_VLUA_LIBDIR "/?.lua;"
+        CONFIG_VAPOROS_VLUA_LIBDIR "/?/init.lua;"
+        "?.lua;?/init.lua");
+      lua_setfield(L, -2, "path");
+      lua_pop(L, 1);
+    }
+
   int status;
 
   if (argc > 2 && strcmp(argv[1], "-e") == 0)

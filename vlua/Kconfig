@@ -15,6 +15,16 @@ config VAPOROS_VLUA_PROGNAME
 	string "Program name"
 	default "vlua"
 
+config VAPOROS_VLUA_LIBDIR
+	string "System-wide Lua library directory"
+	default "/usr/lib/lua"
+	---help---
+		Searched by require() after ./lua_modules (the project's own
+		libraries) and before the current directory: LIBDIR/?.lua and
+		LIBDIR/?/init.lua. Must be on a persistent filesystem on boards
+		that have one (the RP2040 uses /flash/lib/lua). A LUA_PATH
+		environment variable, if set, replaces all of this.
+
 config VAPOROS_VLUA_PRIORITY
 	int "priority"
 	default 100

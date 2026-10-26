@@ -75,6 +75,7 @@ chstat-enosys             = 1
 symlink-api               = 1
 include-nostdinc          = 1
 lua-number-width          = 1
+dot-slash-path            = 1
 
 ---- LOGS -------------------------------
 [toybox]
@@ -268,4 +269,7 @@ lua-number-width          = 1
 (1) lua-number-width -- the "32-bit Lua" setting was a no-op (config typo, then luaconf.h in 5.4.3+); vlua ran
     64-bit numbers. Fixed by patches/nuttx-apps/lua-32bit-typo.patch. With float32 numbers lfs.touch rounds
     times to 128 s (lfs.c reads them as lua_Number) and cjson keeps ~7 digits. Not a compat-scan check.
+(1) dot-slash-path -- on the sim, fopen("./lua_modules/x.lua") fails while fopen("lua_modules/x.lua") works
+    (littlefs on the board accepts both). Found while adding the Lua module search path; vlua's package.path uses
+    plain relative paths. Not a compat-scan check yet.
 
