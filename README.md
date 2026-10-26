@@ -29,6 +29,46 @@ a flash filesystem that survives reflashing -- see docs/rp2040.md.
 Custom graphical terminal implemented (vterm/vterm_fb) - NSH runs on a real NuttX pty, with live keyboard input and echo working. Input is still only read from the terminal vaporOS was launched from, not the graphical window itself (that's forwarded through, not yet captured directly).
 Basic custom Lua implementation with the vapor API activated by default (just tests for now, no real interresting API features currently)
 
+### Lua on vaporOS (status 2026-10-26)
+
+`vlua` runs Lua **5.4.8** (NuttX's default, 5.4.0, is the buggy first release) on the sim and on the
+RP2040-Zero, where it gets a 24 KB stack and about 145 KB of heap. Libraries are selected at build time like any
+other feature (`features/lua-libs.conf`, enabled on `sim-nsh` and `rp2040-zero`) and preloaded, so `require`
+works without files:
+
+| library | version | flash | Lua heap per `require` | notes |
+|---|---|---|---|---|
+| `lpeg` | 1.1.0 | 15 KB | 2.3 KB | own test suite passes on the board (chunked and scaled, `tools/lpeg-board-test/`) |
+| `cjson` | lua-cjson | 8 KB | 1.8 KB | |
+| `lfs` | 1.9.0 | 4 KB | 2.6 KB | own suite passes on the board; no symlinks, no `.`/`..`, `touch` needs littlefs (ENOSYS on FAT/tmpfs) |
+
+Sources are sibling checkouts that `setup.sh` fetches and pins. Limits you will meet on a 24 KB stack:
+lpeg grammars are capped at 200 rules and capture nesting at 20 (`VAPOROS_VLUA_LPEG_MAXRULES`/`_MAXRECLEVEL`;
+deeper input gives a Lua error, not a reset) and Lua's C-call depth is capped at 40 (`lua-maxccalls` patch).
+`os.exit()` closes the Lua state, because NuttX does not reclaim a task's heap and each exit used to leak 35-40 KB.
+Everything we changed in NuttX is a documented patch in `patches/` (index: `patches/UPSTREAM.md`); porting
+findings are in `docs/compat-log.md`. Details and measurements: [docs/lua-runtime.md](docs/lua-runtime.md).
+
+**Numbers are 64-bit (integers and doubles), on purpose.** NuttX's "32-bit Lua" option never worked (a config typo,
+and Lua 5.4.3+ ignores the flag; `lua-32bit-typo` fixes both so it can be turned on). We measured both on the
+RP2040 and kept 64-bit so scripts and libraries from the Lua ecosystem behave as they do everywhere else:
+
+| RP2040, one run each | 32-bit | 64-bit |
+|---|---|---|
+| 300k integer-loop steps | 0.90 s | 2.43 s |
+| 60k `math.sin` | 23.1 s | 7.4 s |
+| fib(23) / strings / sorting 4000 numbers | 0.33 / 0.86 / 0.48 s | 0.36 / 0.81 / 0.50 s |
+| heap for a 4000-number table | 48 KB | 83 KB |
+| flash | 628 KB | 636 KB |
+
+32-bit saves RAM and integer speed but is slower on floats, keeps ~7 digits (JSON numbers, timestamps), wraps
+integers at 2^31 and makes `lfs.touch` round times to 128 s. We switch only if RAM or speed become impractical
+(`CONFIG_INTERPRETERS_LUA_32BIT=y` in `features/lua.conf`).
+
+Known: with the default collector pace lfs's directory-stress test runs out of memory on a booted board
+(free heap is ~175 KB, peak garbage does not fit); `collectgarbage("incremental", 100, 400)` fixes it.
+Not yet: a package manager (deferred), cjson's own test suite, the sim with the final 64-bit build re-run.
+
 ---
 
 ## FLASHING (humans and AI agents)
