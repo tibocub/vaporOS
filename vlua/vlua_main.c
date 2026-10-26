@@ -9,6 +9,8 @@
 #include <nuttx/config.h>
 #include <stdbool.h>
 #include <stdlib.h>
+#include <sys/mount.h>
+#include <sys/stat.h>
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
@@ -208,6 +210,31 @@ static void vlua_repl(lua_State *L)
   putchar('\n');
 }
 
+#ifdef CONFIG_VAPOROS_VLUA_HOSTLIBDIR
+/* Simulator: no persistent storage, so mount a host directory as the system library directory. */
+
+static void vlua_mount_hostlib(void)
+{
+  struct stat st;
+  char path[] = CONFIG_VAPOROS_VLUA_LIBDIR;
+  char *p;
+
+  if (stat(path, &st) == 0)
+    {
+      return;
+    }
+
+  for (p = path + 1; (p = strchr(p, '/')) != NULL; *p++ = '/')
+    {
+      *p = '\0';
+      mkdir(path, 0755);
+    }
+
+  mkdir(path, 0755);
+  mount("", path, "hostfs", 0, "fs=" CONFIG_VAPOROS_VLUA_HOSTLIBDIR);
+}
+#endif
+
 int main(int argc, FAR char *argv[])
 {
   lua_State *L = luaL_newstate();
@@ -223,6 +250,10 @@ int main(int argc, FAR char *argv[])
   /* RAM is the scarce resource, not CPU: collect as soon as garbage equals live data (default waits
    * for 2x) and take bigger steps. Needed for lfs's own test suite to fit on the RP2040. */
   lua_gc(L, LUA_GCINC, 100, 400, 0);
+
+#ifdef CONFIG_VAPOROS_VLUA_HOSTLIBDIR
+  vlua_mount_hostlib();
+#endif
 
   lua_getglobal(L, "os");
   lua_pushcfunction(L, vlua_os_exit);

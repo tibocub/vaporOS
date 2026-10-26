@@ -209,6 +209,8 @@ a missing file.
 `CONFIG_VAPOROS_VLUA_LIBDIR` (per board; `/flash/lib/lua` on the RP2040), then the script's directory; `LUA_PATH`
 replaces it. Verified on the RP2040 (system module found from any directory, a project's `lua_modules` wins over
 the system copy, a script elsewhere uses its own project) and on the sim (project directory, relative and absolute
-script paths). Shortcut: the path is fixed when `vlua` starts, so a script cannot change which project it belongs
+script paths, and the system directory: `vlua` mounts the host folder `vaporos-lua/` at `/usr/lib/lua` with hostfs
+when `CONFIG_VAPOROS_VLUA_HOSTLIBDIR` is set; the mount happens in `vlua` itself, so no NuttX patch; it is skipped
+if the directory already exists, and silently absent if the host folder does not exist). Shortcut: the path is fixed when `vlua` starts, so a script cannot change which project it belongs
 to except by editing `package.path`. Native libraries are not searchable: no dynamic linking, they are build-time
 features.

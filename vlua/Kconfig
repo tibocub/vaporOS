@@ -25,6 +25,16 @@ config VAPOROS_VLUA_LIBDIR
 		that have one (the RP2040 uses /flash/lib/lua). A LUA_PATH
 		environment variable, if set, replaces all of this.
 
+config VAPOROS_VLUA_HOSTLIBDIR
+	string "Host directory to mount at the system library directory"
+	default ""
+	depends on FS_HOSTFS
+	---help---
+		For the simulator, which has no persistent filesystem of its
+		own: if set and LIBDIR does not exist, vlua mounts this host
+		directory (relative to where the simulator runs) there with
+		hostfs. Leave empty on boards with real storage.
+
 config VAPOROS_VLUA_PRIORITY
 	int "priority"
 	default 100
