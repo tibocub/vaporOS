@@ -44,6 +44,7 @@ mount-table-introspection = 4
 environ-replace           = 4
 kconfig-silent-drop       = 4
 inotify                   = 3
+task-stack-size           = 3
 getdelim-uninit-size      = 2
 shared-globals            = 2
 st-ino-identity           = 2
@@ -52,7 +53,6 @@ fork-call                 = 2
 exec-family               = 2
 arg-max-sysconf           = 2
 dot-path-in-fat           = 2
-task-stack-size           = 2
 uninitialised-stat-buffer = 2
 paths-h                   = 1
 has-include-probe         = 1
@@ -256,3 +256,7 @@ include-nostdinc          = 1
 (1) include-nostdinc -- vlua could not use vapor-nostdinc.mk once cjson was
     added (cjson includes <math.h>, which the toolchain provides, not NuttX).
     Same reason NuttX's own interpreters/lua is built without it.
+(1) task-stack-size -- Lua's 200-level C-call limit assumes a stack of ~100 KB; vlua's 24 KB held ~45 levels
+    (464 B each), so deep pcall nesting overflowed the stack with no guard and reset the board. Limit now set
+    per board (lua-maxccalls patch). Not a compat-scan check.
+

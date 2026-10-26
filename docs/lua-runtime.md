@@ -161,3 +161,29 @@ Known gaps, all of them NuttX, not the libraries (see compat-log.md):
 `lfs.lock_dir` needs `symlink` and fails everywhere tested. `dev`/`ino` are always 0
 (on the sim; `ino` also 0 on `/flash`). Like upstream, `lfs.touch` does not create
 a missing file.
+
+### Test suites on the RP2040 (2026-10-26)
+
+- **lfs's own suite passes** (`Ok!`, 13 checks) on a fresh boot, after `mkdir /tmp` (the test hardcodes it and
+  the board's `/tmp` does not survive a reboot). Its symlink/hard-link checks are skipped by the suite itself.
+- **lpeg's suite does not fit as one file**: compiling the 50 KB script needs more than the ~145 KB of heap a
+  Lua state gets. It was split into 10 chunks (top-level locals made global; passes on the host the same way).
+  Chunks 1 and 2 pass (35 and 37 KB of Lua heap). **Chunk 3 resets the board**, on Lua 5.4.0 and on 5.4.8: the
+  first statement that does it is `m.match({ m.V(1) * 'a' }, "a")`, lpeg's left-recursion error. The same call
+  raises the right error on the NuttX simulator (x86-64), so the cause is specific to the 32-bit Cortex-M0+
+  target. Not yet narrowed (error paths `A`-`E` of `t6.lua` were never run); the crash record showed a wild
+  pointer inside `luaH_getshortstr`, not a stack overflow. Chunks 4-10 are untested on the board (they pass on
+  the host). A test needing 65535 captures ("large dynamic Cc") cannot fit in the RAM and is left out.
+- **The 24 KB `vlua` stack held only ~45 nested C calls** (pcall in pcall: 480 B per level on 5.4.0, 464 B on
+  5.4.8, measured with `/proc/self/stack`), but Lua allows 200, and there is no stack guard: deep nesting
+  silently overwrote memory and reset the board (crash record: stack pointer 19 KB below the stack base).
+  `patches/nuttx-apps/lua-maxccalls.patch` makes the limit configurable; the rp2040 board sets 40. With it,
+  unbounded `pcall` recursion stops at depth 39 with a Lua error, peak stack 18.9 KB, board alive (5.4.8).
+- **NuttX's Lua was never built with 32-bit numbers.** `interpreters/lua/Makefile` tests
+  `CONFIG_INTERPRETERS_LUA_32BITS` but the option is `..._32BIT`, so `-DLUA_32BITS` is never passed; on the
+  board `math.maxinteger` is 9223372036854775807. Left as is (32-bit floats would hurt JSON/timestamps); the
+  langbench Lua numbers used a separate 32-bit build.
+- vlua now builds **Lua 5.4.8** (NuttX defaults to 5.4.0).
+- Handy while testing: `tools/rp2040-stream.py` (stream a command's output to a log), and sending big files by
+  a Lua receiver on stdin (50 KB in 30 s) instead of typing hex into the shell (~9 min).
+
