@@ -40,6 +40,18 @@ config VAPOROS_VLUA_LPEG
 		require("lpeg"). Pure ANSI C. re.lua (lpeg's regex-like layer) is
 		plain Lua, install it with the other pure-Lua libraries.
 
+config VAPOROS_VLUA_LPEG_MAXRULES
+	int "lpeg: maximum rules per grammar (MAXRULES)"
+	depends on VAPOROS_VLUA_LPEG
+	default 1000
+	---help---
+		lpeg's left-recursion check recurses once per rule step, up to this
+		many levels, at about 40 bytes of C stack each on a Cortex-M0+. 1000
+		(upstream) needs ~45 KB, more than a small vlua stack has, and a
+		left-recursive grammar then overflows it and resets the board. Keep
+		it below about (vlua stack size - 10 KB) / 45. Also the most rules
+		a grammar may have.
+
 config VAPOROS_VLUA_CJSON
 	bool "cjson -- JSON encode/decode (../lua-cjson)"
 	default n

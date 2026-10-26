@@ -25,7 +25,7 @@ CSRCS += $(LIBS)/luafilesystem/src/lfs.c
 endif
 
 ifneq ($(CONFIG_VAPOROS_VLUA_LPEG),)
-CFLAGS += -DVLUA_LPEG
+CFLAGS += -DVLUA_LPEG -DMAXRULES=$(CONFIG_VAPOROS_VLUA_LPEG_MAXRULES)
 CSRCS += $(addprefix $(LIBS)/lpeg-1.1.0/,lpcap.c lpcode.c lpcset.c lpprint.c lptree.c lpvm.c)
 endif
 
