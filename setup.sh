@@ -50,6 +50,10 @@ if [ ! -d lua-cjson ]; then
   git clone https://github.com/mpx/lua-cjson.git
   git -C lua-cjson checkout -q 718f27293a981fb5e9e662e9aec0b7cf78317da6
 fi
+if [ ! -d Monocypher ]; then
+  git clone https://github.com/LoupVaillant/Monocypher.git
+  git -C Monocypher checkout -q ab2b16dd619ad5f6979a4fbe69cfa324a6fcc35f   # 4.0.3
+fi
 if [ ! -d lpeg-1.1.0 ]; then
   curl -L https://www.inf.puc-rio.br/~roberto/lpeg/lpeg-1.1.0.tar.gz | tar xz
 fi

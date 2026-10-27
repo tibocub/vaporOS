@@ -105,6 +105,15 @@ config VAPOROS_VLUA_SOCKET
 		require("vsock"): connect/send/recv/close with timeouts. The primitives
 		under vpm's HTTP client; about 1 KB of code. Needs the network stack.
 
+config VAPOROS_VLUA_ED25519
+	bool "vsign -- ed25519 signature verification (../Monocypher)"
+	default n
+	---help---
+		require("vsign"): vsign.verify(signature, message, public_key). Checks the
+		signed package index in vpm, so an index fetched over plain HTTP can be
+		trusted. Verification only (signing is done by the publisher). Small:
+		Monocypher is one portable C file, compiled with sections that the linker drops.
+
 config VAPOROS_VLUA_TLS
 	bool "vtls -- TLS client connections (mbedTLS, vlua/vtls.c)"
 	depends on VAPOROS_VLUA_SOCKET

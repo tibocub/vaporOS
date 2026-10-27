@@ -53,6 +53,11 @@ CFLAGS += -DVLUA_SOCKET
 CSRCS += vsock.c
 endif
 
+ifneq ($(CONFIG_VAPOROS_VLUA_ED25519),)
+CFLAGS += -DVLUA_ED25519 ${INCDIR_PREFIX}$(LIBS)/Monocypher/src/optional ${INCDIR_PREFIX}$(LIBS)/Monocypher/src
+CSRCS += vsign.c $(addprefix $(LIBS)/Monocypher/src/,monocypher.c optional/monocypher-ed25519.c)
+endif
+
 ifneq ($(CONFIG_VAPOROS_VLUA_TLS),)
 CFLAGS += -DVLUA_TLS
 CSRCS += vtls.c

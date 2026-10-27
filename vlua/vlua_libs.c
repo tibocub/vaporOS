@@ -25,6 +25,9 @@ int luaopen_vsock(lua_State *L);
 #ifdef VLUA_TLS
 int luaopen_vtls(lua_State *L);
 #endif
+#ifdef VLUA_ED25519
+int luaopen_vsign(lua_State *L);
+#endif
 
 static const luaL_Reg g_libs[] =
 {
@@ -42,6 +45,9 @@ static const luaL_Reg g_libs[] =
 #endif
 #ifdef VLUA_TLS
   {"vtls", luaopen_vtls},
+#endif
+#ifdef VLUA_ED25519
+  {"vsign", luaopen_vsign},
 #endif
   {NULL, NULL}
 };
