@@ -4,6 +4,7 @@
 Runs `vlua /flash/recv.lua` (tools/rp2040-recv.lua, put there once with rp2040-put.py) and streams hex
 lines to it: about 2 KB/s, 50 KB in 30 s (rp2040-put.py is ~100 B/s). Checks a byte sum per file.
 Needs an idle board with no other helper holding the port."""
+import glob, os, select, sys, termios, time
 files = sys.argv[1:]
 fd = os.open(__import__("glob").glob("/dev/ttyACM*")[0], os.O_RDWR | os.O_NOCTTY)
 t = termios.tcgetattr(fd); t[0] = t[1] = t[3] = 0
