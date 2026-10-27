@@ -22,6 +22,9 @@ int luaopen_cjson(lua_State *L);
 #ifdef VLUA_SOCKET
 int luaopen_vsock(lua_State *L);
 #endif
+#ifdef VLUA_TLS
+int luaopen_vtls(lua_State *L);
+#endif
 
 static const luaL_Reg g_libs[] =
 {
@@ -36,6 +39,9 @@ static const luaL_Reg g_libs[] =
 #endif
 #ifdef VLUA_SOCKET
   {"vsock", luaopen_vsock},
+#endif
+#ifdef VLUA_TLS
+  {"vtls", luaopen_vtls},
 #endif
   {NULL, NULL}
 };

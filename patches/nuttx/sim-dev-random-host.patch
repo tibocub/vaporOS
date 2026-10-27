@@ -1,0 +1,186 @@
+vaporOS NuttX patch: sim-dev-random-host
+
+Problem:   The simulator has no /dev/random or /dev/urandom (no ARCH_HAVE_RNG), so mbedTLS
+           has no entropy source ("CTR_DRBG - The entropy source failed") and no TLS
+           connection can be made. The software urandom generators (xorshift128,
+           congruential) are documented as not cryptographically secure.
+Fix:       Both devices are served by the host's getrandom(2) (host_getrandom in
+           sim_hostmisc.c, driver in sim_rng.c). NuttX's own getrandom() is renamed
+           (nuttx-names.in) so that the host one can be called from the host layer;
+           without that host_getrandom() silently called NuttX's and read /dev/urandom
+           from itself (EOF). The architecture selects ARCH_HAVE_RNG, except on the
+           native-Windows host layer, which has no host_getrandom yet. A board turns
+           /dev/urandom on with CONFIG_DEV_URANDOM=y (DEV_URANDOM_ARCH).
+Upstream:  MAYBE. Useful for any test of crypto code on the simulator; the Windows
+           host side would need the equivalent (BCryptGenRandom).
+
+Apply: git -C ../nuttx apply ../vaporOS/patches/nuttx/sim-dev-random-host.patch   (setup.sh does this)
+
+diff --git a/arch/Kconfig b/arch/Kconfig
+index ab0a0c066c..7357a1ec2c 100644
+--- a/arch/Kconfig
++++ b/arch/Kconfig
+@@ -104,6 +104,7 @@ config ARCH_RISCV
+ config ARCH_SIM
+ 	bool "Simulation"
+ 	select ARCH_HAVE_BACKTRACE
++	select ARCH_HAVE_RNG if !WINDOWS_NATIVE
+ 	select ARCH_HAVE_MULTICPU if !CONFIG_WINDOWS_NATIVE
+ 	select ARCH_HAVE_RTC_SUBSECONDS
+ 	select ARCH_HAVE_SERIAL_TERMIOS
+diff --git a/arch/sim/src/Makefile b/arch/sim/src/Makefile
+index db65fea2dc..27e7c7f247 100644
+--- a/arch/sim/src/Makefile
++++ b/arch/sim/src/Makefile
+@@ -99,8 +99,19 @@ ifeq ($(CONFIG_ARCH_HAVE_FORK),y)
+ CSRCS += sim_fork.c
+ endif
+ 
++# The host-side files come from sim/win for any Windows host that does not
++# provide a POSIX layer (Cygwin does). That includes MinGW/MSYS2 builds and a
++# MinGW cross-compile from Linux, which are not "Windows native" build
++# environments (cmd.exe, backslash paths) and so don't set WINDOWS_NATIVE.
++SIM_WINHOST = $(CONFIG_WINDOWS_NATIVE)
++ifeq ($(CONFIG_HOST_WINDOWS),y)
++ifneq ($(CONFIG_WINDOWS_CYGWIN),y)
++  SIM_WINHOST = y
++endif
++endif
++
+ VPATH = :sim
+-ifeq ($(CONFIG_WINDOWS_NATIVE),y)
++ifeq ($(SIM_WINHOST),y)
+   VPATH += :sim/win
+ else
+   VPATH += :sim/posix
+@@ -187,6 +198,10 @@ ifeq ($(CONFIG_RTC_DRIVER),y)
+   CSRCS += sim_rtc.c
+ endif
+ 
++ifneq ($(CONFIG_DEV_RANDOM)$(CONFIG_DEV_URANDOM),)
++  CSRCS += sim_rng.c
++endif
++
+ ifeq ($(CONFIG_SIM_LCDDRIVER),y)
+   CSRCS += sim_lcd.c
+ else ifeq ($(CONFIG_SIM_FRAMEBUFFER),y)
+diff --git a/arch/sim/src/nuttx-names.in b/arch/sim/src/nuttx-names.in
+index 9a47af018a..6178c10e95 100644
+--- a/arch/sim/src/nuttx-names.in
++++ b/arch/sim/src/nuttx-names.in
+@@ -72,6 +72,7 @@ NXSYMBOLS(getpeername)
+ NXSYMBOLS(getsockname)
+ NXSYMBOLS(getenv)
+ NXSYMBOLS(getpid)
++NXSYMBOLS(getrandom)
+ NXSYMBOLS(getsockopt)
+ NXSYMBOLS(if_nametoindex)
+ NXSYMBOLS(ioctl)
+diff --git a/arch/sim/src/sim/CMakeLists.txt b/arch/sim/src/sim/CMakeLists.txt
+index c41ac760a5..65e6a7cb79 100644
+--- a/arch/sim/src/sim/CMakeLists.txt
++++ b/arch/sim/src/sim/CMakeLists.txt
+@@ -94,6 +94,10 @@ if(CONFIG_RTC_DRIVER)
+   list(APPEND SRCS sim_rtc.c)
+ endif()
+ 
++if(CONFIG_DEV_RANDOM OR CONFIG_DEV_URANDOM)
++  list(APPEND SRCS sim_rng.c)
++endif()
++
+ if(CONFIG_SIM_LCDDRIVER)
+   list(APPEND SRCS sim_lcd.c)
+ elseif(CONFIG_SIM_FRAMEBUFFER)
+diff --git a/arch/sim/src/sim/posix/sim_hostmisc.c b/arch/sim/src/sim/posix/sim_hostmisc.c
+index a2338ebbd1..05bfee0a2b 100644
+--- a/arch/sim/src/sim/posix/sim_hostmisc.c
++++ b/arch/sim/src/sim/posix/sim_hostmisc.c
+@@ -35,6 +35,7 @@
+ #include <stdarg.h>
+ #include <sys/wait.h>
+ #include <sys/types.h>
++#include <sys/random.h>
+ 
+ #include "sim_internal.h"
+ 
+@@ -63,6 +64,23 @@ void __gcov_dump(void);
+ 
+ extern int backtrace(void **array, int size);
+ 
++/****************************************************************************
++ * Name: host_getrandom
++ *
++ * Description:
++ *   Fill a buffer from the host's random number generator.
++ *
++ * Returned Value:
++ *   The number of bytes written, or a negated errno.
++ ****************************************************************************/
++
++ssize_t host_getrandom(void *buf, size_t len)
++{
++  ssize_t ret = host_uninterruptible(getrandom, buf, len, 0);
++
++  return ret < 0 ? -errno : ret;
++}
++
+ /****************************************************************************
+  * Name: host_abort
+  *
+diff --git a/arch/sim/src/sim/sim_internal.h b/arch/sim/src/sim/sim_internal.h
+index 3ca70b65e9..7b43dacb70 100644
+--- a/arch/sim/src/sim/sim_internal.h
++++ b/arch/sim/src/sim/sim_internal.h
+@@ -216,6 +216,7 @@ void host_irqinitialize(void);
+ void host_abort(int status);
+ int  host_backtrace(void** array, int size);
+ int  host_system(char *buf, size_t len, const char *fmt, ...);
++ssize_t host_getrandom(void *buf, size_t len);
+ 
+ #ifdef CONFIG_SIM_IMAGEPATH_AS_CWD
+ void host_init_cwd(void);
+diff --git a/arch/sim/src/sim/sim_rng.c b/arch/sim/src/sim/sim_rng.c
+new file mode 100644
+index 0000000000..0b9199336d
+--- /dev/null
++++ b/arch/sim/src/sim/sim_rng.c
+@@ -0,0 +1,39 @@
++/****************************************************************************
++ * arch/sim/src/sim/sim_rng.c
++ *
++ * /dev/random and /dev/urandom for the simulator, both served by the host's
++ * getrandom(2): cryptographically secure, unlike the software generators.
++ ****************************************************************************/
++
++#include <nuttx/config.h>
++
++#include <nuttx/fs/fs.h>
++#include <nuttx/drivers/drivers.h>
++
++#include "sim_internal.h"
++
++static ssize_t sim_rng_read(struct file *filep, char *buffer, size_t buflen)
++{
++  return host_getrandom(buffer, buflen);
++}
++
++static const struct file_operations g_sim_rng_fops =
++{
++  NULL,            /* open */
++  NULL,            /* close */
++  sim_rng_read,    /* read */
++};
++
++#ifdef CONFIG_DEV_RANDOM
++void devrandom_register(void)
++{
++  register_driver("/dev/random", &g_sim_rng_fops, 0444, NULL);
++}
++#endif
++
++#ifdef CONFIG_DEV_URANDOM
++void devurandom_register(void)
++{
++  register_driver("/dev/urandom", &g_sim_rng_fops, 0444, NULL);
++}
++#endif

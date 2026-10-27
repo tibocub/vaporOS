@@ -41,7 +41,10 @@ static int *check(lua_State *L)
 
 #define POLL_US 5000
 
-static double now(void)
+int vsock_dial(const char *host, int port, char *err, size_t errlen);
+double vsock_now(void);
+
+double vsock_now(void)
 {
   struct timespec t;
 
@@ -49,19 +52,19 @@ static double now(void)
   return t.tv_sec + t.tv_nsec / 1e9;
 }
 
-static int vsock_connect(lua_State *L)
-{
-  const char *host = luaL_checkstring(L, 1);
-  char port[8];
-  struct addrinfo hints = { .ai_socktype = SOCK_STREAM }, *res, *ai;
-  int *c, fd = -1;
+/* TCP connection to host:port as a non-blocking fd; -1 and a message in err on failure (shared with vtls.c) */
 
-  snprintf(port, sizeof(port), "%d", (int)luaL_checkinteger(L, 2));
-  if (getaddrinfo(host, port, &hints, &res) != 0)
+int vsock_dial(const char *host, int port, char *err, size_t errlen)
+{
+  struct addrinfo hints = { .ai_socktype = SOCK_STREAM }, *res, *ai;
+  char service[8];
+  int fd = -1;
+
+  snprintf(service, sizeof(service), "%d", port);
+  if (getaddrinfo(host, service, &hints, &res) != 0)
     {
-      lua_pushnil(L);
-      lua_pushfstring(L, "cannot resolve %s", host);
-      return 2;
+      snprintf(err, errlen, "cannot resolve %s", host);
+      return -1;
     }
 
   for (ai = res; ai != NULL && fd < 0; ai = ai->ai_next)
@@ -77,10 +80,26 @@ static int vsock_connect(lua_State *L)
   freeaddrinfo(res);
   if (fd < 0)
     {
-      return fail(L, "connect");
+      snprintf(err, errlen, "connect: %s", strerror(errno));
+      return -1;
     }
 
   fcntl(fd, F_SETFL, fcntl(fd, F_GETFL) | O_NONBLOCK);
+  return fd;
+}
+
+static int vsock_connect(lua_State *L)
+{
+  char err[80];
+  int *c, fd = vsock_dial(luaL_checkstring(L, 1), (int)luaL_checkinteger(L, 2), err, sizeof(err));
+
+  if (fd < 0)
+    {
+      lua_pushnil(L);
+      lua_pushstring(L, err);
+      return 2;
+    }
+
   c = (int *)lua_newuserdatauv(L, sizeof(int), 0);
   *c = fd;
   luaL_setmetatable(L, VSOCK_MT);
@@ -131,7 +150,7 @@ static int vsock_recv(lua_State *L)
     }
 
   p = luaL_buffinitsize(L, &b, (size_t)max);
-  for (end = now() + timeout; ; usleep(POLL_US))
+  for (end = vsock_now() + timeout; ; usleep(POLL_US))
     {
       n = recv(*c, p, (size_t)max, 0);
       if (n >= 0 || errno != EAGAIN)
@@ -139,7 +158,7 @@ static int vsock_recv(lua_State *L)
           break;
         }
 
-      if (now() > end)
+      if (vsock_now() > end)
         {
           lua_pushnil(L);
           lua_pushliteral(L, "timeout");

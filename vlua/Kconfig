@@ -105,6 +105,18 @@ config VAPOROS_VLUA_SOCKET
 		require("vsock"): connect/send/recv/close with timeouts. The primitives
 		under vpm's HTTP client; about 1 KB of code. Needs the network stack.
 
+config VAPOROS_VLUA_TLS
+	bool "vtls -- TLS client connections (mbedTLS, vlua/vtls.c)"
+	depends on VAPOROS_VLUA_SOCKET
+	select CRYPTO_MBEDTLS
+	default n
+	---help---
+		require("vtls"): an HTTPS-capable connection with the same interface as
+		vsock. Certificates and host names are always verified against a PEM
+		bundle the caller names. Large: mbedTLS adds a few hundred KB of flash
+		and a handshake needs tens of KB of heap, so it is not for the smallest
+		boards.
+
 endmenu
 
 endif

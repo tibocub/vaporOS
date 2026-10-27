@@ -53,5 +53,10 @@ CFLAGS += -DVLUA_SOCKET
 CSRCS += vsock.c
 endif
 
+ifneq ($(CONFIG_VAPOROS_VLUA_TLS),)
+CFLAGS += -DVLUA_TLS
+CSRCS += vtls.c
+endif
+
 # no vapor-nostdinc.mk: cjson needs the toolchain's math.h, like NuttX's own interpreters/lua does
 include $(APPDIR)/Application.mk
