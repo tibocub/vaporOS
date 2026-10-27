@@ -31,7 +31,9 @@ Basic custom Lua implementation with the vapor API activated by default (just te
 
 ### Lua on vaporOS (status 2026-10-26)
 
-`vlua` runs Lua **5.4.8** (NuttX's default, 5.4.0, is the buggy first release) on the sim and on the
+The command is **`lua`** (also installed as `vlua`): stock Lua 5.4 behaviour plus the vapor API, the libraries below,
+a module search path and a few RAM-driven differences (listed below). NuttX's own interpreter is still there as
+`nxlua`. It runs Lua **5.4.8** (NuttX's default, 5.4.0, is the buggy first release) on the sim and on the
 RP2040-Zero, where it gets a 24 KB stack and about 145 KB of heap. Lua libraries written in C are selected at build
 time like any other feature (`features/lua-libs.conf`, enabled on `sim-nsh` and `rp2040-zero`) and preloaded, so
 `require` works without files:

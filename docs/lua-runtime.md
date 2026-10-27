@@ -214,3 +214,13 @@ when `CONFIG_VAPOROS_VLUA_HOSTLIBDIR` is set; the mount happens in `vlua` itself
 if the directory already exists, and silently absent if the host folder does not exist). Shortcut: the path is fixed when `vlua` starts, so a script cannot change which project it belongs
 to except by editing `package.path`. Native libraries are not searchable: no dynamic linking, they are build-time
 features.
+
+## Command names
+
+`lua` and `vlua` are the same program (`vlua/lua_alias.c` forwards to it; `CONFIG_VAPOROS_VLUA_LUA_ALIAS`).
+Reason for the alias rather than a pure rename: it differs from stock Lua in a few deliberate ways (early garbage
+collection, `os.exit` closes the state, preloaded C libraries, vapor table, module path), so `vlua` stays as the
+unambiguous name. NuttX's stock interpreter is renamed `nxlua` (`lua-progname` patch) because two built-ins cannot
+share a name. Verified on the sim and the RP2040. Not done: `#!/usr/bin/env lua` shebangs (depends on how the
+shell finds built-ins).
+

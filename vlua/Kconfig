@@ -35,6 +35,13 @@ config VAPOROS_VLUA_HOSTLIBDIR
 		directory (relative to where the simulator runs) there with
 		hostfs. Leave empty on boards with real storage.
 
+config VAPOROS_VLUA_LUA_ALIAS
+	bool "Also register vlua as the command \"lua\""
+	default n
+	---help---
+		Needs the stock NuttX lua command renamed (INTERPRETERS_LUA_PROGNAME),
+		otherwise both claim the name "lua".
+
 config VAPOROS_VLUA_PRIORITY
 	int "priority"
 	default 100

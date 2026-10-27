@@ -1,0 +1,38 @@
+vaporOS nuttx-apps patch: lua-progname
+
+Problem:   interpreters/lua always registers its built-in command as "lua". A downstream
+           program that wants that name (vaporOS's own runtime, vlua, which also bundles
+           libraries and a module search path) clashes with it at link time.
+Evidence:  Two built-ins both named "lua" write the same registry entry
+           (apps/builtin/registry/lua.bdat), so only one of them is reachable.
+Fix:       new option INTERPRETERS_LUA_PROGNAME (default "lua", so nothing changes unless
+           set) used as PROGNAME in the Makefile. Makefile only; the CMake build is untouched.
+Upstream:  Maybe. Other interpreters hard-code their name the same way; a per-app name
+           option is cheap but not something NuttX does elsewhere yet.
+
+diff --git a/interpreters/lua/Makefile b/interpreters/lua/Makefile
+--- a/interpreters/lua/Makefile
++++ b/interpreters/lua/Makefile
+@@ -25,5 +25,5 @@
+ # Lua built-in application info
+ 
+-PROGNAME  = lua
++PROGNAME  = $(patsubst "%",%,$(CONFIG_INTERPRETERS_LUA_PROGNAME))
+ PRIORITY  = $(CONFIG_INTERPRETERS_LUA_PRIORITY)
+ STACKSIZE = $(CONFIG_INTERPRETERS_LUA_STACKSIZE)
+diff --git a/interpreters/lua/Kconfig b/interpreters/lua/Kconfig
+--- a/interpreters/lua/Kconfig
++++ b/interpreters/lua/Kconfig
+@@ -24,4 +24,12 @@
+ 		Versions 5.2.0 and up are supported.
+ 
++config INTERPRETERS_LUA_PROGNAME
++	string "Name of the stock lua command"
++	default "lua"
++	---help---
++		Name under which this interpreter registers as a built-in
++		command. Must be a valid C identifier. Change it to free the
++		name "lua" for another program.
++
+ config INTERPRETERS_LUA_CORELIBS
+ 	bool "Load core Lua modules"

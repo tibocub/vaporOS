@@ -17,6 +17,14 @@ CFLAGS += -DLUA_32BITS
 endif
 
 MAINSRC = vlua_main.c
+
+# Optional second command "lua" running the same program (needs the stock interpreter renamed, see
+# features/lua.conf and patches/nuttx-apps/lua-progname.patch).
+ifeq ($(CONFIG_VAPOROS_VLUA_LUA_ALIAS),y)
+PROGNAME += lua
+MAINSRC += lua_alias.c
+CFLAGS += -DVLUA_MAIN=$(patsubst "%",%,$(CONFIG_VAPOROS_VLUA_PROGNAME))_main
+endif
 CSRCS = vapor_core.c vlua_libs.c
 
 # Third-party Lua C libraries: unmodified upstream sources in sibling
