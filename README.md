@@ -79,6 +79,7 @@ linked in at build time. A future package manager only has to download files int
 On the sim the system directory is a host folder: `vlua` mounts `vaporos-lua/` (relative to where the sim runs,
 `~/Code/nuttx` with `dev.mk run`; create it first) at `/usr/lib/lua` with hostfs
 (`CONFIG_VAPOROS_VLUA_HOSTLIBDIR` in `boards/sim-nsh/board.conf`), so libraries persist and are visible from the host.
+Scripts can start with `#!/usr/bin/env lua` and be run by name from vaporshell.
 Sim quirk: paths starting with `./` fail to open there (`vlua ./x.lua`, see `docs/compat-log.md`); use `x.lua`.
 
 vlua collects garbage early (`lua_gc(L, LUA_GCINC, 100, 400)`, vlua_main.c): RAM is scarcer than CPU, and lfs's own suite

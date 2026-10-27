@@ -62,7 +62,9 @@ static void vlua_setup_args(lua_State *L, int argc, FAR char *argv[])
 
   lua_newtable(L);
 
-  for (i = 2; i < argc; i++)
+  /* Like stock lua: arg[0] is the script, arg[-1] the interpreter, arg[1..] the rest. */
+
+  for (i = 0; i < argc; i++)
     {
       lua_pushstring(L, argv[i]);
       lua_rawseti(L, -2, i - 1);
@@ -308,7 +310,18 @@ int main(int argc, FAR char *argv[])
   else if (argc > 1)
     {
       vlua_setup_args(L, argc, argv);
-      status = luaL_dofile(L, argv[1]);
+      status = luaL_loadfile(L, argv[1]);
+      if (status == LUA_OK)
+        {
+          int i;
+
+          for (i = 2; i < argc; i++)
+            {
+              lua_pushstring(L, argv[i]);   /* the script's `...` */
+            }
+
+          status = lua_pcall(L, argc - 2, LUA_MULTRET, 0);
+        }
     }
   else
     {

@@ -221,6 +221,6 @@ features.
 Reason for the alias rather than a pure rename: it differs from stock Lua in a few deliberate ways (early garbage
 collection, `os.exit` closes the state, preloaded C libraries, vapor table, module path), so `vlua` stays as the
 unambiguous name. NuttX's stock interpreter is renamed `nxlua` (`lua-progname` patch) because two built-ins cannot
-share a name. Verified on the sim and the RP2040. Not done: `#!/usr/bin/env lua` shebangs (depends on how the
-shell finds built-ins).
+share a name. Verified on the sim and the RP2040. Shebangs (`#!/usr/bin/env lua`, `#!/bin/lua`) work in vaporshell (see its
+`docs/design.md`); `lua script a b` sets `arg[0]` (script), `arg[-1]` (interpreter) and passes `...` like stock Lua.
 
