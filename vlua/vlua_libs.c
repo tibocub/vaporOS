@@ -19,6 +19,9 @@ int luaopen_lpeg(lua_State *L);
 #ifdef VLUA_CJSON
 int luaopen_cjson(lua_State *L);
 #endif
+#ifdef VLUA_SOCKET
+int luaopen_vsock(lua_State *L);
+#endif
 
 static const luaL_Reg g_libs[] =
 {
@@ -30,6 +33,9 @@ static const luaL_Reg g_libs[] =
 #endif
 #ifdef VLUA_CJSON
   {"cjson", luaopen_cjson},
+#endif
+#ifdef VLUA_SOCKET
+  {"vsock", luaopen_vsock},
 #endif
   {NULL, NULL}
 };

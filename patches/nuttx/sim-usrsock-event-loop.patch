@@ -1,0 +1,28 @@
+vaporOS NuttX patch: sim-usrsock-event-loop
+
+Problem:   With CONFIG_SIM_NETUSRSOCK the simulator's sockets connect and send, but a
+           receive never completes: recv() waits for ever, poll() never reports
+           POLLIN, a blocking connect() cannot finish. The host sockets' readiness is
+           turned into usrsock events by host_usrsock_loop(), and nothing calls it.
+Evidence:  Commit bbcf8fe30b "usrsock: used wd timer to process loop event" removed the
+           host_usrsock_loop() call from sim_loop_task() and added sim_usrsock_work(),
+           but that function only re-queues itself. A TCP client against a host
+           python http.server: the request arrives and is answered, the reply is
+           never seen by the NuttX side (40 retries over 10 s).
+Fix:       Call host_usrsock_loop() from sim_usrsock_work().
+Upstream:  YES. It is a regression in a recent upstream commit; the fix is one line.
+
+Apply: git -C ../nuttx apply ../vaporOS/patches/nuttx/sim-usrsock-event-loop.patch   (setup.sh does this)
+
+diff --git a/arch/sim/src/sim/sim_usrsock.c b/arch/sim/src/sim/sim_usrsock.c
+index c8210d0336..ae41fc663b 100644
+--- a/arch/sim/src/sim/sim_usrsock.c
++++ b/arch/sim/src/sim/sim_usrsock.c
+@@ -415,6 +415,7 @@ static const usrsock_handler_t g_usrsock_handler[] =
+ 
+ static void sim_usrsock_work(void *arg)
+ {
++  host_usrsock_loop();
+   work_queue_next_wq(g_work_queue, &g_usrsock.work, sim_usrsock_work,
+                      NULL, SIM_USRSOCK_PERIOD);
+ }

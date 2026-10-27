@@ -426,10 +426,23 @@ def tweak_args(opt, val):
     raise ConfError(f"{opt}={val!r}: value must be y, n, a number or a quoted string")
 
 
+def set_mixed_case(path, opt, val):
+    """kconfig-tweak upper-cases the option name, so it cannot set NuttX options such as NETDB_DNSSERVER_IPv4ADDR
+    (it appends a CONFIG_..._IPV4ADDR line that Kconfig ignores): edit the line ourselves."""
+    name = opt if opt.startswith("CONFIG_") else "CONFIG_" + opt
+    line = f"# {name} is not set" if val == "n" else f"{name}={val}"
+    lines = [l for l in path.read_text().splitlines()
+             if not (l.startswith(name + "=") or l == f"# {name} is not set")]
+    path.write_text("\n".join(lines + [line]) + "\n")
+
+
 def cmd_apply(args):
     plan = resolve(args[0])
     nuttx = Path(args[1])
     for opt, val, origin, why in plan.options():
+        if opt != opt.upper():
+            set_mixed_case(nuttx / ".config", opt, val)
+            continue
         subprocess.run(["kconfig-tweak", *tweak_args(opt, val)], cwd=nuttx, check=True)
     return 0
 

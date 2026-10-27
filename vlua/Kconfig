@@ -97,6 +97,14 @@ config VAPOROS_VLUA_CJSON
 		dtoa.c is not used; numbers go through libc snprintf/strtod).
 		Like upstream, every decoded number is a Lua float.
 
+config VAPOROS_VLUA_SOCKET
+	bool "vsock -- TCP client sockets (vlua/vsock.c)"
+	depends on NET_TCP
+	default n
+	---help---
+		require("vsock"): connect/send/recv/close with timeouts. The primitives
+		under vpm's HTTP client; about 1 KB of code. Needs the network stack.
+
 endmenu
 
 endif
