@@ -61,7 +61,7 @@ def run(cmd):
 for _ in range(3):
     os.write(fd, b"\r"); time.sleep(0.3)
 run("true")
-for local, remote in zip(a.files[::2], a.files[1::2]):
+def send_file(local, remote):
     data = open(local, "rb").read()
     run("rm -f %s" % remote)
     for i in range(0, len(data), CHUNK):
@@ -84,7 +84,15 @@ for local, remote in zip(a.files[::2], a.files[1::2]):
         if i % (CHUNK * 50) == 0:
             print("%s %d/%d" % (remote, i, len(data)), file=sys.stderr)
     out = run("md5sum %s" % remote).decode(errors="replace")
-    ok = hashlib.md5(data).hexdigest() in out
-    print("%s: %s" % (remote, "ok" if ok else "MD5 MISMATCH"))
-    if not ok:
+    return hashlib.md5(data).hexdigest() in out
+
+
+for local, remote in zip(a.files[::2], a.files[1::2]):
+    # a silently garbled chunk (seen on long transfers) only shows in the md5: send the whole file again
+    for attempt in range(1, 4):
+        ok = send_file(local, remote)
+        print("%s: %s" % (remote, "ok" if ok else "MD5 MISMATCH (attempt %d of 3)" % attempt), flush=True)
+        if ok:
+            break
+    else:
         sys.exit(1)
