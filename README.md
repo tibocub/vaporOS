@@ -445,6 +445,7 @@ name and the source code fitted on a single floppy disc ?
 # ROADMAP
 
 Current direction and ordered next steps: [docs/next-steps.md](docs/next-steps.md).
+Package manager design notes (draft, no code yet): [docs/package-manager.md](docs/package-manager.md).
 The reasoning about a cross-platform Lua runtime (vlua), libuv vs. our own event loop,
 portable program formats and the paused Windows simulator:
 [docs/lua-runtime.md](docs/lua-runtime.md), [docs/windows-sim.md](docs/windows-sim.md).
