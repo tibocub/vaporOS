@@ -1,3 +1,12 @@
+# Package manager
+
+**Moved.** The package manager (`vpm`) now has its own repository, `~/Code/vpm` (design notes in its `docs/`).
+The text below is the earlier first draft, kept for the record; where it disagrees with the vpm repo, the vpm
+repo wins (notably: vpm runs on the device and does not depend on a PC for users; the host tool is only the
+index publisher).
+
+---
+
 # Package manager: design notes (DRAFT, no code yet)
 
 Status 2026-10-27: ideas and open questions only. Nothing here is decided until it says so.
