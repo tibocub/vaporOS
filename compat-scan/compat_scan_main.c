@@ -862,8 +862,8 @@ static const struct check_s CHECKS[] =
     "literal '.' or '..' component (not just passing one straight "
     "through from the user) needs to resolve it first -- see "
     "vapor_resolve_path() in vaporOS-coreutils/nuttx-shims/"
-    "vapor_libc.h (wraps open/stat/chdir/etc.) and vs_path_normalize() "
-    "in vaporshell/util.c (its own VS_FS() macro).",
+    "vapor_libc.h (wraps open/stat/chdir/etc.) and vash_path_normalize() "
+    "in vaporshell/util.c (its own VASH_FS() macro).",
     pat_dotpath
   },
   {

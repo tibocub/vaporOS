@@ -166,7 +166,7 @@ of whether the generic VFS-level enforcement ever lands.
   the gap and rely on service-level self-checks instead?
 - Home directory creation: rcS-style boot step, reading `/etc/passwd`
   via `getpwent()`, `mkdir()`-ing anything missing -- not built.
-- `/etc/vaporshell/vsh.conf` (system-wide default config, from the
+- `/etc/vaporshell/vash.conf` (system-wide default config, from the
   history-file work) and per-user `$HOME`-based overrides were designed
   around "no real home directories yet" -- revisit once this exists.
 - Single primary GID only (no supplementary groups) is a real NuttX

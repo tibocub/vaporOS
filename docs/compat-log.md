@@ -189,7 +189,7 @@ tz-state-kept             = 1
     vapor_libc.h to resolve '.'/'..' into a plain absolute path first,
     skipped when the path has neither (the common case, no extra
     getcwd() cost). vaporshell already had the equivalent
-    (vs_path_normalize() / VS_FS()) for its own builtins; toybox
+    (vash_path_normalize() / VASH_FS()) for its own builtins; toybox
     applets, spawned as separate tasks, needed their own copy.
 (1) fnmatch-pathname-ignored -- NuttX's fnmatch() ignores FNM_PATHNAME
     for a single '*' (always refuses to cross '/', matching only its
