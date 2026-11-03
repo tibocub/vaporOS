@@ -28,4 +28,10 @@
 #   include $(APPDIR)/external/vapor-nostdinc.mk
 
 CFLAGS += -nostdinc
-CFLAGS += ${INCDIR_PREFIX}$(shell $(CC) -print-file-name=include)
+# -idirafter, not ${INCDIR_PREFIX} (-I): -I directories are searched BEFORE NuttX's -isystem include/,
+# so the compiler's own limits.h shadowed NuttX's and NAME_MAX / OPEN_MAX vanished (seen with
+# riscv64-linux-gnu-gcc). The compiler's headers are the fallback, so they go last.
+CFLAGS += -idirafter $(shell $(CC) -print-file-name=include)
+# A Linux-targeted cross compiler (riscv64-linux-gnu-gcc, Fedora's) predefines __linux__, which steers
+# portable code (toybox: <sys/swap.h>) onto Linux-only branches. This is NuttX.
+CFLAGS += -U__linux__ -U__linux -U__gnu_linux__

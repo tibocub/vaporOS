@@ -55,6 +55,7 @@ arg-max-sysconf           = 2
 dot-path-in-fat           = 2
 exit-reclaims-memory      = 2
 uninitialised-stat-buffer = 2
+include-nostdinc          = 2
 paths-h                   = 1
 has-include-probe         = 1
 utmpx-h                   = 1
@@ -73,10 +74,10 @@ underscore-exit           = 1
 hardcoded-device-path     = 1
 chstat-enosys             = 1
 symlink-api               = 1
-include-nostdinc          = 1
 lua-number-width          = 1
 dot-slash-path            = 1
 tz-state-kept             = 1
+linux-macro               = 1
 
 ---- LOGS -------------------------------
 [toybox]
@@ -278,3 +279,10 @@ tz-state-kept             = 1
 (1) tz-state-kept -- the first localtime()/mktime() (Lua's os.date, os.time{...}) allocates libc's time-zone table
     from the heap and never frees it; 5.1 KB with the defaults (TZ_MAX_TIMES=370, TZ_MAX_TYPES=20). Shrunk on the
     RP2040 in board.conf (-3.5 KB). Not a compat-scan check.
+
+[rv-virt toolchain]
+(1) include-nostdinc -- vapor-nostdinc.mk added the compiler's include dir with -I, which GCC searches before
+    NuttX's -isystem include/: the compiler's own limits.h shadowed NuttX's and NAME_MAX / OPEN_MAX were undeclared.
+    Now -idirafter. Not seen with the x86 sim or ARM toolchains, which don't ship a shadowing limits.h that way.
+(1) linux-macro -- a Linux-targeted cross compiler (riscv64-linux-gnu-gcc) predefines __linux__, so toybox took
+    its <sys/swap.h> branch. vapor-nostdinc.mk now undefines it. A bare-metal toolchain wouldn't need this.
