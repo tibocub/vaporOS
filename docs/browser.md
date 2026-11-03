@@ -68,3 +68,19 @@ Each UART byte costs the guest a register write, an interrupt and a trip through
 coalescing patch cuts the host-side round trips (one per byte becomes one per 2 ms). virtio-serial moves whole buffers.
 The boot messages still go to the UART, which the browser build discards (`-serial null`); the native runner
 (`tools/runners/qemu-riscv.sh`) picks virtio or the UART from the built `.config`.
+
+## Where the guest's speed goes (measured)
+Benchmark: `dd if=/dev/zero of=/dev/null bs=512 count=40000` in the browser (guest-bound, no terminal output):
+
+| build | time |
+|---|---|
+| JIT off (TCI interpreter only) | 8.2 s |
+| JIT, threshold 1500 (qemu-wasm default) | 3.0 s |
+| JIT, threshold 100 | 2.9 s |
+| linked without `-g` (full Binaryen; `qemu-wasm.sh slim`) | 3.0 s, wasm 41 -> 11 MB |
+| NuttX release config (no DEBUG_FEATURES / stack coloration) | 3.0 s |
+
+So the wasm JIT is worth 2.7x and is already working, and none of the cheap knobs move it further. What is left is
+structural: qemu-wasm compiles each translation block to its own small wasm module, so every block ends back in a C
+dispatch loop (no chaining between blocks), and guest memory accesses go through helpers. Beyond that, the options are
+a different execution model (NuttX compiled to wasm, i.e. a new architecture port), not tuning.

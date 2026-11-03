@@ -7,6 +7,7 @@
 #   image     build the Docker image                                    (slow, once: tens of minutes)
 #   qemu      compile qemu-system-riscv64 to wasm in a container        (slow, once)
 #   rebuild   apply patches and recompile only what changed             (minutes)
+#   slim      re-link without -g so Binaryen optimizes fully: 41 -> 11 MB (~5 min)
 #   pack      bundle ../nuttx/nuttx into the emscripten filesystem     (seconds; redo after every vaporOS build)
 #   site      assemble web/site/ (wasm + page); `web/serve.py` serves it
 #   all       image, qemu, pack, site
@@ -56,6 +57,13 @@ step_qemu() {
 
 step_rebuild() { step_patch; container; docker exec "$C" emmake make -j"$(nproc)" qemu-system-riscv64; }
 
+# -g in the compile flags makes emcc skip most of Binaryen ("limited binaryen optimizations because DWARF info
+# requested"). Same speed, but a 4x bigger download. Re-run after every rebuild: make's own link adds -g again.
+step_slim() {
+  container
+  docker exec "$C" bash -c 'cd /build && cmd=$(ninja -t commands qemu-system-riscv64 | tail -1) && eval "${cmd/ -g / -g0 }"'
+}
+
 step_pack() {
   [ -f "$NUTTX" ] || { echo "no $NUTTX: make -f dev.mk build BOARD=rv-virt" >&2; exit 1; }
   container
@@ -78,7 +86,7 @@ step_site() {
 }
 
 case "${1:-}" in
-  image) step_image ;; qemu) step_qemu ;; rebuild) step_rebuild ;; pack) step_pack ;; site) step_site ;;
+  image) step_image ;; qemu) step_qemu ;; rebuild) step_rebuild ;; slim) step_slim ;; pack) step_pack ;; site) step_site ;;
   all) step_image; step_qemu; step_pack; step_site ;;
   *) sed -n '2,12p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; exit 2 ;;
 esac

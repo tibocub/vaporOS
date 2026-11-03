@@ -26,7 +26,7 @@ const say = (s) => term.write(String(s).replace(/\r?\n/g, "\r\n") + "\r\n");
 window.addEventListener("error", (e) => say(`[error] ${e.message}`));
 window.addEventListener("unhandledrejection", (e) => say(`[error] ${e.reason?.stack || e.reason}`));
 say(`[vaporOS] cross-origin isolated: ${self.crossOriginIsolated} (needed for wasm threads)`);
-say("[vaporOS] loading QEMU (41 MB wasm)...");
+say("[vaporOS] loading QEMU (wasm)...");
 
 // Module (module.js) is a global the emscripten output reads its arguments from.
 const { default: init } = await import(/* @vite-ignore */ new URL("out.js", document.baseURI).href);
