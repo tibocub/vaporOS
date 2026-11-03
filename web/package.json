@@ -1,0 +1,1 @@
+{ "private": true, "dependencies": { "@wterm/dom": "^0.5.8", "xterm-pty": "0.10.1" } }
