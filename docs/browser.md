@@ -54,3 +54,17 @@ reads and guest output bytes in the second ending then. A healthy run polls cons
 `?qemu=a|b|c` replaces QEMU's command line, `?type=..&after=ms&every=ms` injects keystrokes.
 
 Ruled out: the wasm JIT (pure interpreter froze the same), the guest tick rate, and the CPU idle wait.
+
+## Output speed
+Pure output (`dd if=/dev/zero bs=1024 count=64`, via `?trace=1`):
+
+| console | rate |
+|---|---|
+| emulated 16550 UART, one write() per byte | ~2 KB/s |
+| UART + `chardev-coalesce.patch` | ~13 KB/s |
+| virtio-serial + coalescing | ~128 KB/s |
+
+Each UART byte costs the guest a register write, an interrupt and a trip through the tty layer, all interpreted; the
+coalescing patch cuts the host-side round trips (one per byte becomes one per 2 ms). virtio-serial moves whole buffers.
+The boot messages still go to the UART, which the browser build discards (`-serial null`); the native runner
+(`tools/runners/qemu-riscv.sh`) picks virtio or the UART from the built `.config`.

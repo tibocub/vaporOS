@@ -5,7 +5,9 @@ Module.arguments = [
     "-nographic", "-M", "virt", "-cpu", "rv64", "-smp", "1", "-m", "64M", "-bios", "none",
     "-accel", "tcg,tb-size=500",
     "-kernel", "/pack/nuttx",
-    "-serial", "stdio", "-monitor", "none",
+    // The shell runs on a virtio-serial port (the guest hands over whole buffers); the UART, the boot console, is dropped.
+    "-serial", "null", "-monitor", "none",
+    "-chardev", "stdio,id=con", "-device", "virtio-serial-device", "-device", "virtconsole,chardev=con",
 ];
 
 // Debug: ?qemu=<args separated by |> replaces the command line (to try accelerator/serial settings without rebuilding).
