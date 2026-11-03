@@ -20,6 +20,7 @@
 #include <fcntl.h>
 #include <spawn.h>
 #include <stdio.h>
+#include <termios.h>
 #include <unistd.h>
 
 #ifdef CONFIG_VAPOROS_VINIT_CDCACM
@@ -27,6 +28,28 @@
 #endif
 
 extern char **environ;
+
+/* NuttX gives only the device registered as /dev/console its terminal defaults (CR -> NL on input, NL -> CRLF on
+ * output, Ctrl-C, echo). Any other tty (USB CDC/ACM, a virtio port) starts with none of them, so `vi` ignores
+ * Enter (a terminal sends CR; vi wants NL). Give the tty the console's defaults.
+ */
+
+static int with_console_defaults(int fd)
+{
+#ifdef CONFIG_SERIAL_TERMIOS
+  struct termios t;
+
+  if (tcgetattr(fd, &t) == 0)
+    {
+      t.c_iflag |= ICRNL;
+      t.c_oflag |= OPOST | ONLCR;
+      t.c_lflag |= ISIG | ECHO | ICANON;
+      tcsetattr(fd, TCSANOW, &t);
+    }
+#endif
+
+  return fd;
+}
 
 /* Open the console and wait for three consecutive Enters, which proves a
  * terminal is actually attached (the device node opens before that). Returns
@@ -47,7 +70,7 @@ static int wait_for_host(void)
         }
 
 #ifndef CONFIG_VAPOROS_VINIT_WAIT_HOST
-      return fd;
+      return with_console_defaults(fd);
 #endif
 
       nlc = 0;
@@ -63,7 +86,7 @@ static int wait_for_host(void)
 
       if (nlc >= 3)
         {
-          return fd;
+          return with_console_defaults(fd);
         }
 
       close(fd);
