@@ -6,6 +6,7 @@
 #
 #   image     build the Docker image                                    (slow, once: tens of minutes)
 #   qemu      compile qemu-system-riscv64 to wasm in a container        (slow, once)
+#   rebuild   apply patches and recompile only what changed             (minutes)
 #   pack      bundle ../nuttx/nuttx into the emscripten filesystem     (seconds; redo after every vaporOS build)
 #   site      assemble web/site/ (wasm + page); `web/serve.py` serves it
 #   all       image, qemu, pack, site
@@ -21,9 +22,17 @@ EXTRA_CFLAGS="-O3 -g -Wno-error=unused-command-line-argument -matomics -mbulk-me
 
 container() { docker inspect "$C" >/dev/null 2>&1 || docker run --rm -d --name "$C" -v "$QEMU":/qemu/:ro buildqemu >/dev/null; }
 
-step_image() { (cd "$QEMU" && docker build --progress=plain -t buildqemu - < Dockerfile); }
+# Local fixes to ktock/qemu-wasm, kept here as patches (tools/qemu-wasm-patches/*.patch); applied once, idempotent.
+step_patch() {
+  for p in "$DIR"/tools/qemu-wasm-patches/*.patch; do
+    git -C "$QEMU" apply --reverse --check "$p" 2>/dev/null || git -C "$QEMU" apply "$p"
+  done
+}
+
+step_image() { step_patch; (cd "$QEMU" && docker build --progress=plain -t buildqemu - < Dockerfile); }
 
 step_qemu() {
+  step_patch
   container
   # meson fetches these subprojects (libfdt for the riscv64 "virt" machine, the keycode tables) INTO the source
   # tree, which the container mounts read-only: fetch them here, at the revisions the .wrap files pin.
@@ -44,6 +53,8 @@ step_qemu() {
     --extra-ldflags="-sEXPORTED_RUNTIME_METHODS=getTempRet0,setTempRet0,addFunction,removeFunction,TTY,FS"
   docker exec "$C" emmake make -j"$(nproc)" qemu-system-riscv64
 }
+
+step_rebuild() { step_patch; container; docker exec "$C" emmake make -j"$(nproc)" qemu-system-riscv64; }
 
 step_pack() {
   [ -f "$NUTTX" ] || { echo "no $NUTTX: make -f dev.mk build BOARD=rv-virt" >&2; exit 1; }
@@ -67,7 +78,7 @@ step_site() {
 }
 
 case "${1:-}" in
-  image) step_image ;; qemu) step_qemu ;; pack) step_pack ;; site) step_site ;;
+  image) step_image ;; qemu) step_qemu ;; rebuild) step_rebuild ;; pack) step_pack ;; site) step_site ;;
   all) step_image; step_qemu; step_pack; step_site ;;
   *) sed -n '2,12p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; exit 2 ;;
 esac

@@ -1,0 +1,37 @@
+diff --git a/util/qemu-timer.c b/util/qemu-timer.c
+index 6a0de33..b39ba80 100644
+--- a/util/qemu-timer.c
++++ b/util/qemu-timer.c
+@@ -334,6 +334,32 @@ int qemu_timeout_ns_to_ms(int64_t ns)
+  */
+ int qemu_poll_ns(GPollFD *fds, guint nfds, int64_t timeout)
+ {
++#ifdef EMSCRIPTEN
++    /* emscripten's poll() ignores its timeout and never blocks (__syscall_poll only samples the fds), so the main
++     * loop spun at full speed, every pass a syscall proxied to the browser's main thread. Sample without blocking
++     * and sleep in short slices until an fd is ready or the timeout is over.
++     */
++    {
++        int64_t deadline = timeout < 0 ? INT64_MAX
++                         : qemu_clock_get_ns(QEMU_CLOCK_REALTIME) + timeout;
++
++        for (;;) {
++            int ret = g_poll(fds, nfds, 0);
++            int64_t left, slice;
++
++            if (ret != 0) {
++                return ret;
++            }
++            left = timeout < 0 ? INT64_MAX
++                 : deadline - qemu_clock_get_ns(QEMU_CLOCK_REALTIME);
++            if (left <= 0) {
++                return 0;
++            }
++            slice = left / 1000; /* ns -> us */
++            usleep(slice < 1 ? 1 : slice > 2000 ? 2000 : slice);
++        }
++    }
++#endif
+ #ifdef CONFIG_PPOLL
+     if (timeout < 0) {
+         return ppoll((struct pollfd *)fds, nfds, NULL, NULL);

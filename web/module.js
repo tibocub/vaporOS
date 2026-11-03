@@ -7,3 +7,9 @@ Module.arguments = [
     "-kernel", "/pack/nuttx",
     "-serial", "stdio", "-monitor", "none",
 ];
+
+// Debug: ?qemu=<args separated by |> replaces the command line (to try accelerator/serial settings without rebuilding).
+{
+  const a = new URLSearchParams(location.search).get("qemu");
+  if (a) Module.arguments = a.split("|");
+}

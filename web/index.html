@@ -2,7 +2,12 @@
 <meta charset="utf-8">
 <title>vaporOS in the browser</title>
 <link rel="stylesheet" href="dist/main.css">
-<style>html, body { margin: 0; height: 100%; background: #1a1b26; } #terminal { height: 100vh; }</style>
+<style>
+  /* fill the viewport exactly: wterm's own padding/shadow/rounding and scrollbar would otherwise overflow it */
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #1a1b26; }
+  #terminal { box-sizing: border-box; width: 100vw; height: 100dvh; padding: 0; border-radius: 0; box-shadow: none; scrollbar-width: none; }
+  #terminal::-webkit-scrollbar { display: none; }
+</style>
 <div id="terminal"></div>
 <script src="load.js"></script>
 <script src="module.js"></script>
