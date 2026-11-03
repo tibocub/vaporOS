@@ -39,3 +39,18 @@ Known quirk: a key typed while the kernel is still booting can be lost (the firs
   URL (we patched the local clone).
 - load.js registers the file package on the global `Module`: assign `Module.arguments`, don't replace `Module`.
 - Resolve `out.js` against the page, not the bundle.
+
+## Lag: what it was, and how to look at it
+Two things made the terminal freeze for seconds to a minute (headless-Firefox measurements, `?trace=1&type=ls\n&every=6000`):
+- **xterm-pty blocks.** Its `read` parks the calling thread until the next keystroke when no byte is ready, and its `poll`
+  waits on the terminal alone (ignoring QEMU's timeout and every other fd). QEMU's main loop, which also runs the guest's
+  timers, shares that thread, so the machine stood still until a key arrived. `web/main.js` replaces both with
+  non-blocking versions (the poll one comes from qemu-wasm's own example; the read one is ours).
+- **emscripten's `poll` never sleeps**, so the non-blocking version spins the main loop. `tools/qemu-wasm-patches/poll-sleeps.patch`
+  makes `qemu_poll_ns` sleep in short slices (idle CPU from ~160% of a core to ~40%).
+
+`?trace=1` prints, once at 22 s, a timeline: `<seconds>i` is a key, and `<seconds>[p y r o]` is the polls, readable polls,
+reads and guest output bytes in the second ending then. A healthy run polls constantly and answers each key within a second.
+`?qemu=a|b|c` replaces QEMU's command line, `?type=..&after=ms&every=ms` injects keystrokes.
+
+Ruled out: the wasm JIT (pure interpreter froze the same), the guest tick rate, and the CPU idle wait.
