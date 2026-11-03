@@ -12,6 +12,17 @@ compiled to WebAssembly ([ktock/qemu-wasm](https://github.com/ktock/qemu-wasm)),
 
 After a new vaporOS build only `tools/qemu-wasm.sh pack && tools/qemu-wasm.sh site` is needed.
 
+## What is in the image
+vaporshell + the toybox applets, `vlua` (Lua 5.4), `vi`, the vaporUI examples (`vui_windows`, `vui_buttons`, `vui_colors`,
+`vui_input`, `vui_layout`, `vui_textarea`), the demos, and a RAM `/tmp` (the board has no persistent storage: files are
+gone on reload). No network, no ELF loading, no Lua libs (lfs/lpeg/cjson).
+
+Verified (headless Firefox, injected keystrokes): boot to `vaporshell$` in under ~8 s, typing and output, `vui_windows`
+fills the window (the size comes from vaporUI's cursor-position probe, answered by wterm), `vlua` and `/tmp` natively.
+Not yet checked by hand: mouse, `vi`, the other vui_* examples, paste, resizing the window.
+
+Known quirk: a key typed while the kernel is still booting can be lost (the first character of a command).
+
 ## How it fits together
 - `tools/qemu-wasm.sh`: builds QEMU for emscripten in Docker (the project's pinned emsdk), bundles `../nuttx/nuttx` into
   the emscripten filesystem as `/pack/nuttx`, and assembles `web/site/`.
