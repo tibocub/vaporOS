@@ -97,6 +97,14 @@ int main(int argc, FAR char *argv[])
   mkdir("/bin", 0755);
   mount(NULL, "/bin", "binfs", 0, NULL);
 
+#ifdef CONFIG_VAPOROS_VINIT_TMPFS_DIR
+  if (CONFIG_VAPOROS_VINIT_TMPFS_DIR[0] != '\0')
+    {
+      mkdir(CONFIG_VAPOROS_VINIT_TMPFS_DIR, 0777);
+      mount(NULL, CONFIG_VAPOROS_VINIT_TMPFS_DIR, "tmpfs", 0, NULL);
+    }
+#endif
+
   /* Until a host is attached, stdio must not point at a dead device */
 
   fd = open("/dev/null", O_RDWR);

@@ -50,4 +50,13 @@ config VAPOROS_VINIT_TTY
 		/dev/console. Set by the board's console hardware descriptor
 		(hardware/console/*.conf).
 
+config VAPOROS_VINIT_TMPFS_DIR
+	string "Mount a RAM filesystem (tmpfs) here"
+	default ""
+	depends on FS_TMPFS
+	---help---
+		A directory to create and mount tmpfs on at boot, e.g. /tmp, for boards
+		with no persistent storage. Empty: mount nothing. Set by the
+		storage/tmpfs hardware descriptor.
+
 endif
