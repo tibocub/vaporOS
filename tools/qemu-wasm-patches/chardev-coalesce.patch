@@ -1,0 +1,103 @@
+diff --git a/chardev/char-fd.c b/chardev/char-fd.c
+index d2c4923..90a20bc 100644
+--- a/chardev/char-fd.c
++++ b/chardev/char-fd.c
+@@ -32,7 +32,73 @@
+ 
+ #include "chardev/char-fd.h"
+ #include "chardev/char-io.h"
++#include "qemu/timer.h"
+ 
++#ifdef EMSCRIPTEN
++/*
++ * In the browser every write() to the terminal is a synchronous round trip to the page's main thread, and the
++ * emulated UART hands us one byte at a time, so a screen redraw cost thousands of round trips. Collect output and
++ * write it in one go: after OFLUSH_MS, or at once when OBUF_SIZE is reached.
++ */
++#define OBUF_SIZE 8192
++#define OFLUSH_MS 2
++
++/* Called with chr_write_lock held.  */
++static void fd_chr_flush(FDChardev *s)
++{
++    size_t off = 0;
++
++    while (off < s->olen) {
++        int n = io_channel_send(s->ioc_out, s->obuf + off, s->olen - off);
++
++        if (n <= 0) {
++            break; /* shortcut: a failing terminal drops its output rather than blocking the machine */
++        }
++        off += n;
++    }
++    s->olen = 0;
++}
++
++static void fd_chr_flush_timer(void *opaque)
++{
++    Chardev *chr = CHARDEV(opaque);
++    FDChardev *s = FD_CHARDEV(opaque);
++
++    qemu_mutex_lock(&chr->chr_write_lock);
++    if (s->ioc_out && s->olen) {
++        fd_chr_flush(s);
++    }
++    qemu_mutex_unlock(&chr->chr_write_lock);
++}
++
++/* Called with chr_write_lock held.  */
++static int fd_chr_write(Chardev *chr, const uint8_t *buf, int len)
++{
++    FDChardev *s = FD_CHARDEV(chr);
++
++    if (!s->ioc_out) {
++        return -1;
++    }
++    if (!s->obuf) {
++        s->obuf = g_malloc(OBUF_SIZE);
++        s->oflush = timer_new_ms(QEMU_CLOCK_REALTIME, fd_chr_flush_timer, chr);
++    }
++    if (len > OBUF_SIZE - s->olen) {
++        fd_chr_flush(s);
++        if (len >= OBUF_SIZE) {
++            return io_channel_send(s->ioc_out, buf, len);
++        }
++    }
++    memcpy(s->obuf + s->olen, buf, len);
++    s->olen += len;
++    if (s->olen >= OBUF_SIZE) {
++        fd_chr_flush(s);
++    } else if (!timer_pending(s->oflush)) {
++        timer_mod(s->oflush, qemu_clock_get_ms(QEMU_CLOCK_REALTIME) + OFLUSH_MS);
++    }
++    return len;
++}
++#else
+ /* Called with chr_write_lock held.  */
+ static int fd_chr_write(Chardev *chr, const uint8_t *buf, int len)
+ {
+@@ -44,6 +110,7 @@ static int fd_chr_write(Chardev *chr, const uint8_t *buf, int len)
+ 
+     return io_channel_send(s->ioc_out, buf, len);
+ }
++#endif
+ 
+ static gboolean fd_chr_read(QIOChannel *chan, GIOCondition cond, void *opaque)
+ {
+diff --git a/include/chardev/char-fd.h b/include/chardev/char-fd.h
+index 9de0e44..e25a6a9 100644
+--- a/include/chardev/char-fd.h
++++ b/include/chardev/char-fd.h
+@@ -33,6 +33,12 @@ struct FDChardev {
+ 
+     QIOChannel *ioc_in, *ioc_out;
+     int max_size;
++#ifdef EMSCRIPTEN
++    /* output coalescing, see fd_chr_write() */
++    uint8_t *obuf;
++    size_t olen;
++    QEMUTimer *oflush;
++#endif
+ };
+ typedef struct FDChardev FDChardev;
+ 

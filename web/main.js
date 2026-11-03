@@ -73,5 +73,5 @@ if (q.has("trace")) {
   setInterval(() => { ev.push(`${t()}[p${p} y${y} r${r} o${o}]`); p = y = r = o = 0; }, 1000);
   let last = performance.now(), worst = 0;
   setInterval(() => { const n = performance.now(); worst = Math.max(worst, n - last - 100); last = n; }, 100);
-  setTimeout(() => say(`[trace] stall ${Math.round(worst)} ms; ${ev.join(" ")}`), 22000);
+  setTimeout(() => say(`[trace] stall ${Math.round(worst)} ms; ${ev.join(" ")}`), 25000);
 }
