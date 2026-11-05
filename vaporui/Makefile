@@ -13,6 +13,17 @@ CFLAGS += ${INCDIR_PREFIX}$(VUI)/include
 
 CSRCS = $(wildcard $(VUI)/src/*.c) $(wildcard $(VUI)/src/widgets/*.c) $(VUI)/src/platform/posix.c
 
+# Terminal widget (needs a pty and RAM for libvterm's cell grid: ~40 B per cell, so not for the RP2040)
+ifeq ($(CONFIG_VAPOROS_VAPORUI_TERMINAL),y)
+# One libvterm in the image: vaporOS's own copy (vterm/), which the vtermtest app compiles when it is enabled.
+VTERM := $(APPDIR)/external/vterm/libvterm
+CFLAGS += -DVUI_TERMINAL ${INCDIR_PREFIX}$(VTERM)/include ${INCDIR_PREFIX}$(VTERM)/src
+CSRCS += $(VUI)/src/ext/terminal.c
+ifneq ($(CONFIG_VAPOROS_VTERMTEST),y)
+CSRCS += $(wildcard $(VTERM)/src/*.c)
+endif
+endif
+
 MAINSRC  = $(VUI)/examples/windows.c
 MAINSRC += $(VUI)/examples/text-area.c
 MAINSRC += $(VUI)/examples/input-handling.c

@@ -17,4 +17,13 @@ config VAPOROS_VAPORUI_STACKSIZE
 	int "vaporUI examples stack size"
 	default 4096
 
+config VAPOROS_VAPORUI_TERMINAL
+	bool "vaporUI terminal widget (vui_windows gets a Terminal window)"
+	default n
+	depends on PSEUDOTERM
+	---help---
+		Builds src/ext/terminal.c and the vendored libvterm, and runs a shell
+		in a pty inside a vui_windows window. libvterm keeps ~40 bytes per
+		cell (twice with the alternate screen): too much for small boards.
+
 endif
