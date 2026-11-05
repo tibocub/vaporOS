@@ -1,0 +1,21 @@
+{
+  "lockfileVersion": 1,
+  "configVersion": 1,
+  "workspaces": {
+    "": {
+      "dependencies": {
+        "@wterm/dom": "^0.5.8",
+        "xterm-pty": "0.10.1",
+      },
+    },
+  },
+  "packages": {
+    "@wterm/core": ["@wterm/core@0.5.9", "", {}, "sha512-+S5VA/CGmbU60PnN8PrE8i0hWBbzUzdrbjRYsnaioMum7alubzgRQ7IJ+SWCeymX6lKA6SfzfdkdYsNffTLA1Q=="],
+
+    "@wterm/dom": ["@wterm/dom@0.5.9", "", { "dependencies": { "@wterm/core": "0.5.9" } }, "sha512-0Ghz0FVbtr6g4Frk8F3I92H9UjCsIbhjQ1X8U+tly9oF172qDq685mrRPBeI8XZ5OIXK2bLr+/XAEYPUmxzwBA=="],
+
+    "xterm": ["xterm@4.19.0", "", {}, "sha512-c3Cp4eOVsYY5Q839dR5IejghRPpxciGmLWWaP9g+ppfMeBChMeLa1DCA+pmX/jyDZ+zxFOmlJL/82qVdayVoGQ=="],
+
+    "xterm-pty": ["xterm-pty@0.10.1", "", { "dependencies": { "xterm": "^4.16.0" } }, "sha512-fF4x2iTTE2PmFRaZfQbO8iZB59Krf3q0ORAyYgesGFRGjUDJX36MpsjRVdmdIdA+HEzBcqMAcxzvaW7/rI088w=="],
+  }
+}

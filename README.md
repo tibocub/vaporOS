@@ -88,6 +88,23 @@ Not yet: a package manager (deferred), cjson's own test suite, the system-wide d
 
 ---
 
+## RUN IT IN THE BROWSER
+
+The `rv-virt` board runs unchanged in a web page: QEMU is compiled to WebAssembly
+([ktock/qemu-wasm](https://github.com/ktock/qemu-wasm)) and its UART is a wterm terminal.
+Needs Docker, `bun`, the emscipten SDK, python3.
+
+```
+make -f dev.mk build BOARD=rv-virt
+git clone --depth 1 https://github.com/ktock/qemu-wasm ../qemu-wasm
+tools/qemu-wasm.sh all  # first time only: tens of minutes
+cd web && bun i
+python3 serve.py        # http://localhost:8088
+```
+
+After a new vaporOS build, `tools/qemu-wasm.sh pack && tools/qemu-wasm.sh site` (seconds) is enough; reload the page.
+Details, patches and measurements: [docs/browser.md](docs/browser.md).
+
 ## FLASHING (humans and AI agents)
 
     make -f dev.mk build BOARD=rp2040     # compile  -> ../nuttx/nuttx.uf2

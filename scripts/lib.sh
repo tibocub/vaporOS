@@ -17,7 +17,7 @@ distclean_preserving_lua() {
     rm -rf "$DIR"  # incomplete/wrong layout, don't cache it
   fi
 
-  make distclean
+  make distclean CROSSDEV=  # distclean compiles nothing; the old board's cross-compiler may not be on PATH (host gcc quiets the probes)
 
   [ -f "$KEEP/tarball" ] && mv "$KEEP/tarball" "../nuttx-apps/interpreters/lua/$(basename "$TARBALL")"
   [ -d "$KEEP/dir" ] && mv "$KEEP/dir" "$DIR"

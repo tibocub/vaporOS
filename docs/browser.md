@@ -7,7 +7,7 @@ compiled to WebAssembly ([ktock/qemu-wasm](https://github.com/ktock/qemu-wasm)),
     make -f dev.mk build BOARD=rv-virt       # the kernel, as for native QEMU
     git clone --depth 1 https://github.com/ktock/qemu-wasm ../qemu-wasm
     tools/qemu-wasm.sh all                   # first time: image + qemu take a long time; `pack` + `site` take seconds
-    (cd web && npm i)
+    (cd web && bun i)
     python3 web/serve.py                     # http://localhost:8088
 
 After a new vaporOS build only `tools/qemu-wasm.sh pack && tools/qemu-wasm.sh site` is needed.
