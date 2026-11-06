@@ -5,6 +5,7 @@ import functools, http.server, pathlib, sys
 class Handler(http.server.SimpleHTTPRequestHandler):
     extensions_map = {**http.server.SimpleHTTPRequestHandler.extensions_map, ".wasm": "application/wasm", ".js": "text/javascript"}
     def end_headers(self):
+        self.send_header("Cache-Control", "no-cache") # a repacked kernel must not be shadowed by a cached copy
         self.send_header("Cross-Origin-Opener-Policy", "same-origin")
         self.send_header("Cross-Origin-Embedder-Policy", "require-corp")
         super().end_headers()
