@@ -74,7 +74,7 @@ step_pack() {
   [ -f "$NUTTX" ] || { echo "no $NUTTX: make -f dev.mk build BOARD=rv-virt" >&2; exit 1; }
   if [ -n "${QEMU_OUT:-}" ]; then
     rm -rf "$DIR/web/pack" && mkdir -p "$DIR/web/pack/root" && cp "$NUTTX" "$DIR/web/pack/root/nuttx"
-    (cd "$DIR/web/pack" && "$EMSDK/upstream/emscripten/tools/file_packager.py" qemu-system-riscv64.data --preload root@/pack > load.js)
+    (cd "$DIR/web/pack" && "$(dirname "$(command -v emcc)")/tools/file_packager.py" qemu-system-riscv64.data --preload root@/pack > load.js)
     return
   fi
   container

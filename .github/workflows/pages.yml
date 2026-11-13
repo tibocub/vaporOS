@@ -40,10 +40,13 @@ jobs:
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y bison flex gettext texinfo libncurses5-dev libncursesw5-dev xxd git gperf automake \
-            libtool pkg-config build-essential genromfs kconfig-frontends picocom u-boot-tools util-linux \
-            gcc-riscv64-linux-gnu qemu-system-misc
+            libtool pkg-config build-essential genromfs kconfig-frontends picocom u-boot-tools util-linux
           cd vaporOS && yes | ./setup.sh   # clones nuttx & friends next to the checkout
-          echo "PATH=$PATH"; command -v riscv64-linux-gnu-gcc qemu-system-riscv64 || ls -l /usr/bin/riscv64-linux-gnu-gcc* || true
+          # setup.sh installs gcc-multilib (for the sim), which conflicts with the RISC-V cross compiler and makes
+          # apt remove it, so the cross toolchain goes in last and multilib goes out. rv-virt does not need multilib.
+          sudo apt-get remove -y gcc-multilib g++-multilib
+          sudo apt-get install -y gcc-riscv64-linux-gnu qemu-system-misc
+          command -v riscv64-linux-gnu-gcc && command -v qemu-system-riscv64
           make -f dev.mk build BOARD=rv-virt
 
       - uses: mymindstorm/setup-emsdk@v14
