@@ -5,6 +5,7 @@
     "": {
       "dependencies": {
         "@wterm/dom": "^0.5.8",
+        "coi-serviceworker": "^0.1.7",
         "xterm-pty": "0.10.1",
       },
     },
@@ -13,6 +14,8 @@
     "@wterm/core": ["@wterm/core@0.5.9", "", {}, "sha512-+S5VA/CGmbU60PnN8PrE8i0hWBbzUzdrbjRYsnaioMum7alubzgRQ7IJ+SWCeymX6lKA6SfzfdkdYsNffTLA1Q=="],
 
     "@wterm/dom": ["@wterm/dom@0.5.9", "", { "dependencies": { "@wterm/core": "0.5.9" } }, "sha512-0Ghz0FVbtr6g4Frk8F3I92H9UjCsIbhjQ1X8U+tly9oF172qDq685mrRPBeI8XZ5OIXK2bLr+/XAEYPUmxzwBA=="],
+
+    "coi-serviceworker": ["coi-serviceworker@0.1.7", "", {}, "sha512-bjSUqEngCPOkErY2vbyWsaIGCNRODYzlNycaREVw5s12/C8SM+RnRUUeX6pZbTtov6C52ZLY/+tvHK+BDxuUuA=="],
 
     "xterm": ["xterm@4.19.0", "", {}, "sha512-c3Cp4eOVsYY5Q839dR5IejghRPpxciGmLWWaP9g+ppfMeBChMeLa1DCA+pmX/jyDZ+zxFOmlJL/82qVdayVoGQ=="],
 

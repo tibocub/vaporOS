@@ -10,12 +10,15 @@
 #   slim      re-link without -g so Binaryen optimizes fully: 41 -> 11 MB (~5 min)
 #   pack      bundle ../nuttx/nuttx into the emscripten filesystem     (seconds; redo after every vaporOS build)
 #   site      assemble web/site/ (wasm + page); `web/serve.py` serves it
+#   export    copy QEMU's wasm build (out.js, .wasm, worker) to a directory   (CI caches it)
 #   all       image, qemu, pack, site
 set -euo pipefail
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 QEMU="$(dirname "$DIR")/qemu-wasm"
 NUTTX="$(dirname "$DIR")/nuttx/nuttx"
 C=build-qemu-wasm
+# QEMU_OUT=<dir> (CI): pack/site use a QEMU build exported there plus a local emsdk's file_packager, no container.
+BUILT="out.js qemu-system-riscv64.wasm qemu-system-riscv64.worker.js"
 [ -d "$QEMU" ] || { echo "clone it first: git clone --depth 1 https://github.com/ktock/qemu-wasm $QEMU" >&2; exit 1; }
 
 # From qemu-wasm's README: threads (MTTCG), Asyncify for the few blocking spots, a PTY for the serial console.
@@ -64,8 +67,16 @@ step_slim() {
   docker exec "$C" bash -c 'cd /build && cmd=$(ninja -t commands qemu-system-riscv64 | tail -1) && eval "${cmd/ -g / -g0 }"'
 }
 
+step_export() { container; mkdir -p "$1"; docker cp "$C":/build/qemu-system-riscv64 "$1/out.js"
+  for f in qemu-system-riscv64.wasm qemu-system-riscv64.worker.js; do docker cp "$C":/build/$f "$1"/; done; }
+
 step_pack() {
   [ -f "$NUTTX" ] || { echo "no $NUTTX: make -f dev.mk build BOARD=rv-virt" >&2; exit 1; }
+  if [ -n "${QEMU_OUT:-}" ]; then
+    rm -rf "$DIR/web/pack" && mkdir -p "$DIR/web/pack/root" && cp "$NUTTX" "$DIR/web/pack/root/nuttx"
+    (cd "$DIR/web/pack" && "$EMSDK/upstream/emscripten/tools/file_packager.py" qemu-system-riscv64.data --preload root@/pack > load.js)
+    return
+  fi
   container
   docker exec "$C" sh -c 'rm -rf /pack && mkdir /pack'
   docker cp "$NUTTX" "$C":/pack/nuttx
@@ -73,20 +84,27 @@ step_pack() {
 }
 
 step_site() {
-  container
+  [ -n "${QEMU_OUT:-}" ] || container
   local out="$DIR/web/site"
   rm -rf "$out" && mkdir -p "$out"
   (cd "$DIR/web" && bun build main.js --outdir dist --target browser --external ./out.js >/dev/null)
   cp -r "$DIR"/web/{index.html,module.js,dist} "$out"/
-  docker cp "$C":/build/qemu-system-riscv64 "$out/out.js"
-  for f in qemu-system-riscv64.wasm qemu-system-riscv64.worker.js qemu-system-riscv64.data load.js; do
-    docker cp "$C":/build/"$f" "$out"/
-  done
+  # GitHub Pages cannot send COOP/COEP; this service worker adds them (and does nothing where they are already sent)
+  cp "$DIR/web/node_modules/coi-serviceworker/coi-serviceworker.min.js" "$out"/
+  if [ -n "${QEMU_OUT:-}" ]; then
+    for f in $BUILT; do cp "$QEMU_OUT/$f" "$out"/; done
+    cp "$DIR"/web/pack/{qemu-system-riscv64.data,load.js} "$out"/
+  else
+    docker cp "$C":/build/qemu-system-riscv64 "$out/out.js"
+    for f in qemu-system-riscv64.wasm qemu-system-riscv64.worker.js qemu-system-riscv64.data load.js; do
+      docker cp "$C":/build/"$f" "$out"/
+    done
+  fi
   echo "site ready: python3 $DIR/web/serve.py  (http://localhost:8088)"
 }
 
 case "${1:-}" in
-  image) step_image ;; qemu) step_qemu ;; rebuild) step_rebuild ;; slim) step_slim ;; pack) step_pack ;; site) step_site ;;
+  image) step_image ;; qemu) step_qemu ;; rebuild) step_rebuild ;; slim) step_slim ;; export) step_export "${2:?dir}" ;; pack) step_pack ;; site) step_site ;;
   all) step_image; step_qemu; step_pack; step_site ;;
   *) sed -n '2,12p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; exit 2 ;;
 esac

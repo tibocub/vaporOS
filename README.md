@@ -90,6 +90,8 @@ Not yet: a package manager (deferred), cjson's own test suite, the system-wide d
 
 ## RUN IT IN THE BROWSER
 
+**[Try it in your browser](https://tibocub.github.io/vaporOS/)**: built from `main` by `.github/workflows/pages.yml`.
+
 The `rv-virt` board runs unchanged in a web page: QEMU is compiled to WebAssembly
 ([ktock/qemu-wasm](https://github.com/ktock/qemu-wasm)) and its UART is a wterm terminal.
 Needs Docker, `bun`, the emscipten SDK, python3.

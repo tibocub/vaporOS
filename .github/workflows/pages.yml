@@ -1,0 +1,60 @@
+# Builds vaporOS (rv-virt) and deploys it, running on QEMU-in-WebAssembly, to GitHub Pages.
+# One-time repo setting: Settings -> Pages -> Source: "GitHub Actions".
+name: web demo
+on:
+  push: { branches: [main] }
+  workflow_dispatch:
+permissions: { contents: read, pages: write, id-token: write }
+concurrency: { group: pages, cancel-in-progress: true }
+
+env:
+  QEMU_WASM_REF: 0ef7b4e2814b231705d8371dd7997f5b72e70baf   # ktock/qemu-wasm; bump together with the patches
+  QEMU_OUT: ${{ github.workspace }}/qemu-out
+
+jobs:
+  deploy:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    environment: { name: github-pages, url: "${{ steps.deploy.outputs.page_url }}" }
+    steps:
+      - uses: actions/checkout@v4
+        with: { path: vaporOS }
+
+      # QEMU's wasm build takes tens of minutes and only changes with the script, the patches or the pinned ref.
+      - id: qemu-cache
+        uses: actions/cache@v4
+        with:
+          path: qemu-out
+          key: qemu-wasm-${{ env.QEMU_WASM_REF }}-${{ hashFiles('vaporOS/tools/qemu-wasm.sh', 'vaporOS/tools/qemu-wasm-patches/*') }}
+      - name: Build QEMU for wasm
+        if: steps.qemu-cache.outputs.cache-hit != 'true'
+        run: |
+          git clone https://github.com/ktock/qemu-wasm qemu-wasm
+          git -C qemu-wasm checkout -q "$QEMU_WASM_REF"
+          vaporOS/tools/qemu-wasm.sh image
+          vaporOS/tools/qemu-wasm.sh qemu
+          vaporOS/tools/qemu-wasm.sh slim
+          vaporOS/tools/qemu-wasm.sh export "$QEMU_OUT"
+
+      - name: Build vaporOS (rv-virt)
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y bison flex gettext texinfo libncurses5-dev libncursesw5-dev xxd git gperf automake \
+            libtool pkg-config build-essential genromfs kconfig-frontends picocom u-boot-tools util-linux \
+            gcc-riscv64-linux-gnu qemu-system-misc
+          cd vaporOS && yes | ./setup.sh   # clones nuttx & friends next to the checkout
+          make -f dev.mk build BOARD=rv-virt
+
+      - uses: mymindstorm/setup-emsdk@v14
+        with: { version: 3.1.50 }
+      - uses: oven-sh/setup-bun@v2
+      - name: Assemble the site
+        run: |
+          (cd vaporOS/web && bun install --frozen-lockfile)
+          vaporOS/tools/qemu-wasm.sh pack
+          vaporOS/tools/qemu-wasm.sh site
+
+      - uses: actions/upload-pages-artifact@v3
+        with: { path: vaporOS/web/site }
+      - id: deploy
+        uses: actions/deploy-pages@v4

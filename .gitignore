@@ -16,3 +16,4 @@
 __pycache__/
 *.pyc
 compile_commands.json
+web/pack

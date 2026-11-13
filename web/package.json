@@ -1,1 +1,8 @@
-{ "private": true, "dependencies": { "@wterm/dom": "^0.5.8", "xterm-pty": "0.10.1" } }
+{
+  "private": true,
+  "dependencies": {
+    "@wterm/dom": "^0.5.8",
+    "coi-serviceworker": "^0.1.7",
+    "xterm-pty": "0.10.1"
+  }
+}
