@@ -72,7 +72,7 @@ if command -v apt-get >/dev/null 2>&1; then
   git gperf automake libtool pkg-config build-essential gperf genromfs \
 	libgmp-dev libmpc-dev libmpfr-dev libisl-dev binutils-dev libelf-dev \
 	libexpat1-dev gcc-multilib g++-multilib picocom u-boot-tools util-linux \
-	kconfig-frontend
+	kconfig-frontends
 elif command -v dnf >/dev/null 2>&1; then
 	sudo dnf install \
 	bison flex gettext texinfo ncurses-devel ncurses ncurses-compat-libs \

@@ -143,6 +143,18 @@ int main(int argc, FAR char *argv[])
       dup2(fd, 0); dup2(fd, 1); dup2(fd, 2);
       if (fd > 2) close(fd);
 
+#ifdef CONFIG_VAPOROS_VINIT_MOTD
+      if (CONFIG_VAPOROS_VINIT_MOTD[0] != '\0')
+        {
+          char *motd_argv[] = { CONFIG_VAPOROS_VINIT_MOTD, NULL };
+
+          if (posix_spawnp(&pid, motd_argv[0], NULL, NULL, motd_argv, environ) == 0)
+            {
+              waitpid(pid, NULL, 0);
+            }
+        }
+#endif
+
       if (posix_spawnp(&pid, sh_argv[0], NULL, NULL, sh_argv, environ) == 0)
         {
           waitpid(pid, NULL, 0);

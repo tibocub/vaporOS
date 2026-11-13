@@ -42,6 +42,14 @@ config VAPOROS_VINIT_WAIT_HOST
 		terminal program is attached; three Enters prove one is. A UART is
 		always "attached", so turn this off there.
 
+config VAPOROS_VINIT_MOTD
+	string "Program to run before the shell (message of the day)"
+	default "motd" if VAPOROS_MOTD
+	default ""
+	---help---
+		Run with the console as stdio each time the shell is about to start.
+		Empty: nothing.
+
 config VAPOROS_VINIT_TTY
 	string "Console device"
 	default "/dev/ttyACM0"

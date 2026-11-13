@@ -1,0 +1,5 @@
+config VAPOROS_MOTD
+	tristate "motd -- print the vaporOS logo"
+	default n
+	---help---
+		Prints the ASCII logo. vinit runs it before the shell starts.

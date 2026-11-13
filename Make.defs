@@ -37,3 +37,6 @@ endif
 ifneq ($(CONFIG_VAPOROS_VBENCH),)
 CONFIGURED_APPS += $(APPDIR)/external/vbench
 endif
+ifneq ($(CONFIG_VAPOROS_MOTD),)
+CONFIGURED_APPS += $(APPDIR)/external/motd
+endif
