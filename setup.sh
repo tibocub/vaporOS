@@ -40,6 +40,11 @@ if [ ! -d vaporshell ]; then
   git clone https://github.com/tibocub/vaporshell.git
 fi
 
+# vaporUI: the TUI library behind the vaporui and vaporui-terminal features (built from ../vaporUI).
+if [ ! -d vaporUI ]; then
+  git clone https://github.com/tibocub/vaporUI.git
+fi
+
 # Lua C libraries for vlua (features/lua-libs.conf): unmodified upstream
 # sources next to this repo, pinned to the versions that were ported.
 if [ ! -d luafilesystem ]; then
