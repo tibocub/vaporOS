@@ -33,7 +33,7 @@ const { default: init } = await import(/* @vite-ignore */ new URL("out.js", docu
 Module.print = say;
 Module.printErr = say;
 Module.pty = slave;
-Module.mainScriptUrlOrBlob = location.origin + "/out.js";
+Module.mainScriptUrlOrBlob = new URL("out.js", document.baseURI).href;
 say("[vaporOS] starting the virtual machine...");
 const instance = await init(Module);
 // xterm-pty's poll shim (from qemu-wasm's own example): report "readable" only when there is input.
