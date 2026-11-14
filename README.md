@@ -90,6 +90,8 @@ Not yet: a package manager (deferred), cjson's own test suite, the system-wide d
 
 ## RUN IT IN THE BROWSER
 
+> Expect poor performances, this is nothing more than a web-demo. Even an RP2040 runs vaporOS a magnitude faster than the WASM emulator.
+
 **[Try it in your browser](https://tibocub.github.io/vaporOS/)**: built from `main` by `.github/workflows/pages.yml`.
 
 The `rv-virt` board runs unchanged in a web page: QEMU is compiled to WebAssembly
