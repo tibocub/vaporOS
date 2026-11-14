@@ -19,7 +19,7 @@ NUTTX="$(dirname "$DIR")/nuttx/nuttx"
 C=build-qemu-wasm
 # QEMU_OUT=<dir> (CI): pack/site use a QEMU build exported there plus a local emsdk's file_packager, no container.
 BUILT="out.js qemu-system-riscv64.wasm qemu-system-riscv64.worker.js"
-[ -d "$QEMU" ] || { echo "clone it first: git clone --depth 1 https://github.com/ktock/qemu-wasm $QEMU" >&2; exit 1; }
+[ -d "$QEMU" ] || [ -n "${QEMU_OUT:-}" ] || { echo "clone it first: git clone --depth 1 https://github.com/ktock/qemu-wasm $QEMU" >&2; exit 1; }
 
 # From qemu-wasm's README: threads (MTTCG), Asyncify for the few blocking spots, a PTY for the serial console.
 EXTRA_CFLAGS="-O3 -g -Wno-error=unused-command-line-argument -matomics -mbulk-memory -DNDEBUG -DG_DISABLE_ASSERT -D_GNU_SOURCE -sASYNCIFY=1 -pthread -sPROXY_TO_PTHREAD=1 -sFORCE_FILESYSTEM -sALLOW_TABLE_GROWTH -sTOTAL_MEMORY=2300MB -sWASM_BIGINT -sMALLOC=mimalloc --js-library=/build/node_modules/xterm-pty/emscripten-pty.js -sEXPORT_ES6=1 -sASYNCIFY_IMPORTS=ffi_call_js"
