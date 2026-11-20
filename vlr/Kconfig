@@ -29,6 +29,14 @@ config VAPOROS_VLR_MAXCCALLS
 		Each level costs stack (about 480 bytes on a Cortex-M0+, ~4 KB on the x86-64 simulator). Keep it
 		below about (stack size - 10 KB) / cost per level. See docs/lua-runtime.md.
 
+config VAPOROS_VLR_STRIP_INTERNAL
+	bool "Strip debug info from vlr's own Lua code (saves ~3.4 KB of heap)"
+	default y
+	---help---
+		The scheduler and compat layer are Lua sources compiled at startup and kept in RAM. Stripping drops
+		their line info and local names: about 3.4 KB of the ~17 KB they cost (host measurement). Errors raised
+		inside the scheduler then show no line numbers.
+
 config VAPOROS_VLR_GC_PAUSE
 	int "Lua GC pause (percent)"
 	default 100
