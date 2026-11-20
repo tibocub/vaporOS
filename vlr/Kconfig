@@ -1,0 +1,62 @@
+config VAPOROS_VLR
+	tristate "vlr -- the portable Lua runtime (../vlr)"
+	depends on !INTERPRETERS_LUA
+	default n
+	---help---
+		The vlr runtime: its own patched Lua 5.4.8 (5.1-compatible dialect by default), the vapor
+		API and event scheduler, built from the sibling checkout ../vlr with the shared source list
+		vlr/sources.mk. Brings its own Lua, so it cannot be enabled together with NuttX's
+		INTERPRETERS_LUA (duplicate symbols); boards pick one (features/vlr.conf or lua.conf).
+
+if VAPOROS_VLR
+
+config VAPOROS_VLR_PROGNAME
+	string "Program name"
+	default "vlr"
+
+config VAPOROS_VLR_PRIORITY
+	int "priority"
+	default 100
+
+config VAPOROS_VLR_STACKSIZE
+	int "stack size"
+	default DEFAULT_TASK_STACKSIZE
+
+config VAPOROS_VLR_MAXCCALLS
+	int "Lua: maximum nested C calls (LUAI_MAXCCALLS)"
+	default 200
+	---help---
+		Each level costs stack (about 480 bytes on a Cortex-M0+, ~4 KB on the x86-64 simulator). Keep it
+		below about (stack size - 10 KB) / cost per level. See docs/lua-runtime.md.
+
+menu "Native modules (sources next to this repo, listed in ../vlr/modules.conf)"
+
+config VAPOROS_VLR_LFS
+	bool "lfs -- LuaFileSystem (../luafilesystem)"
+	default n
+
+config VAPOROS_VLR_LPEG
+	bool "lpeg -- parsing expression grammars (../lpeg-1.1.0)"
+	default n
+
+config VAPOROS_VLR_LPEG_MAXRULES
+	int "lpeg: maximum rules per grammar (MAXRULES)"
+	depends on VAPOROS_VLR_LPEG
+	default 1000
+	---help---
+		See VAPOROS_VLUA_LPEG_MAXRULES: lpeg recurses this many levels, ~45 bytes each on a Cortex-M0+.
+
+config VAPOROS_VLR_LPEG_MAXRECLEVEL
+	int "lpeg: maximum capture nesting (MAXRECLEVEL)"
+	depends on VAPOROS_VLR_LPEG
+	default 200
+	---help---
+		See VAPOROS_VLUA_LPEG_MAXRECLEVEL: 572 bytes of stack per level on a Cortex-M0+.
+
+config VAPOROS_VLR_CJSON
+	bool "cjson -- JSON encode/decode (../lua-cjson)"
+	default n
+
+endmenu
+
+endif

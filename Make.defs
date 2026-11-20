@@ -10,6 +10,9 @@ endif
 ifneq ($(CONFIG_VAPOROS_VLUA),)
 CONFIGURED_APPS += $(APPDIR)/external/vlua
 endif
+ifneq ($(CONFIG_VAPOROS_VLR),)
+CONFIGURED_APPS += $(APPDIR)/external/vlr
+endif
 ifneq ($(CONFIG_VAPOROS_PORTABLE_CAT),)
 CONFIGURED_APPS += $(APPDIR)/external/portable_cat
 endif
