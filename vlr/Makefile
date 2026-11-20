@@ -16,6 +16,7 @@ MAINSRC = $(VLR)/$(VLR_MAIN_SRC)
 CSRCS   = $(addprefix $(VLR)/,$(VLR_CORE_SRC) src/platform_posix.c) $(addprefix $(VLR)/third_party/lua/,$(VLR_LUA_SRC))
 CFLAGS += ${INCDIR_PREFIX}$(VLR)/include ${INCDIR_PREFIX}$(VLR)/third_party/lua
 CFLAGS += -DLUAI_MAXCCALLS=$(CONFIG_VAPOROS_VLR_MAXCCALLS)
+CFLAGS += -DVLR_GC_PAUSE=$(CONFIG_VAPOROS_VLR_GC_PAUSE) -DVLR_GC_STEPMUL=$(CONFIG_VAPOROS_VLR_GC_STEPMUL)
 # os.execute goes through vlr_exec (platform_posix.c: vaporshell -c on NuttX, which has no system()); vlr_lua.h wires
 # Lua's l_system hook to it.
 CFLAGS += -include vlr_lua.h
