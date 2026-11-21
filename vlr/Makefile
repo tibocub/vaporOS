@@ -32,6 +32,9 @@ endif
 ifneq ($(CONFIG_VAPOROS_VLR_INPUT),)
 VLR_MODS += vapor.term vapor.input
 endif
+ifneq ($(CONFIG_VAPOROS_VLR_NET),)
+VLR_MODS += vapor.stream vapor.netraw vapor.net
+endif
 ifneq ($(CONFIG_VAPOROS_VLR_LFS),)
 VLR_MODS += lfs
 endif

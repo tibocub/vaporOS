@@ -62,6 +62,14 @@ config VAPOROS_VLR_INPUT
 	bool "vapor.input -- key, mouse and resize events (with the terminal decoder)"
 	default y
 
+config VAPOROS_VLR_NET
+	bool "vapor.net -- TCP/UDP sockets and streams"
+	depends on NET
+	default n
+	---help---
+		Needs a NuttX network stack (CONFIG_NET with sockets). The RP2040 images have none yet; the sim needs usrsock or a
+		network device. Name resolution blocks the whole task while it runs.
+
 config VAPOROS_VLR_LFS
 	bool "lfs -- LuaFileSystem (../luafilesystem)"
 	default n
