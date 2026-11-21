@@ -20,6 +20,7 @@
 #include <fcntl.h>
 #include <spawn.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <termios.h>
 #include <unistd.h>
 
@@ -93,6 +94,44 @@ static int wait_for_host(void)
     }
 }
 
+#ifdef CONFIG_VAPOROS_VINIT_HOME
+/* mkdir -p the home, seed ~/.vashrc once (the user's to edit afterwards), export $HOME */
+
+static void setup_home(void)
+{
+  static const char rc[] = "PS1='\\w $ '\n";
+  char path[CONFIG_PATH_MAX];
+  char *p;
+  int fd;
+
+  if (CONFIG_VAPOROS_VINIT_HOME[0] == '\0')
+    {
+      return;
+    }
+
+  snprintf(path, sizeof(path), "%s/", CONFIG_VAPOROS_VINIT_HOME);
+  for (p = path + 1; *p != '\0'; p++)
+    {
+      if (*p == '/')
+        {
+          *p = '\0';
+          mkdir(path, 0755);
+          *p = '/';
+        }
+    }
+
+  snprintf(path, sizeof(path), "%s/.vashrc", CONFIG_VAPOROS_VINIT_HOME);
+  fd = open(path, O_WRONLY | O_CREAT | O_EXCL, 0644);
+  if (fd >= 0)
+    {
+      write(fd, rc, sizeof(rc) - 1);
+      close(fd);
+    }
+
+  setenv("HOME", CONFIG_VAPOROS_VINIT_HOME, 1);
+}
+#endif
+
 int main(int argc, FAR char *argv[])
 {
 #ifdef CONFIG_VAPOROS_VINIT_CDCACM
@@ -128,6 +167,10 @@ int main(int argc, FAR char *argv[])
     }
 #endif
 
+#ifdef CONFIG_VAPOROS_VINIT_HOME
+  setup_home();
+#endif
+
   /* Until a host is attached, stdio must not point at a dead device */
 
   fd = open("/dev/null", O_RDWR);
@@ -152,6 +195,13 @@ int main(int argc, FAR char *argv[])
             {
               waitpid(pid, NULL, 0);
             }
+        }
+#endif
+
+#ifdef CONFIG_VAPOROS_VINIT_HOME
+      if (CONFIG_VAPOROS_VINIT_HOME[0] != '\0')
+        {
+          chdir(CONFIG_VAPOROS_VINIT_HOME);
         }
 #endif
 

@@ -67,4 +67,13 @@ config VAPOROS_VINIT_TMPFS_DIR
 		with no persistent storage. Empty: mount nothing. Set by the
 		storage/tmpfs hardware descriptor.
 
+config VAPOROS_VINIT_HOME
+	string "Home directory of the (only) user"
+	default ""
+	---help---
+		Created at boot if missing (with a default ~/.vashrc that puts the
+		working directory in the prompt), exported as $HOME, and the shell
+		starts in it. Put it on persistent storage, e.g. /flash/home.
+		Empty: no home, the shell starts in / as before.
+
 endif

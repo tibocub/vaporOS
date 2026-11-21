@@ -26,6 +26,12 @@ CFLAGS += -include vlr_lua.h
 
 # Native modules chosen in Kconfig; their sources and -D flags come from vlr's modules.conf.
 VLR_MODS :=
+ifneq ($(CONFIG_VAPOROS_VLR_FS),)
+VLR_MODS += vapor.fs
+endif
+ifneq ($(CONFIG_VAPOROS_VLR_INPUT),)
+VLR_MODS += vapor.term vapor.input
+endif
 ifneq ($(CONFIG_VAPOROS_VLR_LFS),)
 VLR_MODS += lfs
 endif

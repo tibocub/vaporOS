@@ -54,6 +54,14 @@ config VAPOROS_VLR_GC_STEPMUL
 
 menu "Native modules (sources next to this repo, listed in ../vlr/modules.conf)"
 
+config VAPOROS_VLR_FS
+	bool "vapor.fs -- list, stat, mkdir, rmdir"
+	default y
+
+config VAPOROS_VLR_INPUT
+	bool "vapor.input -- key, mouse and resize events (with the terminal decoder)"
+	default y
+
 config VAPOROS_VLR_LFS
 	bool "lfs -- LuaFileSystem (../luafilesystem)"
 	default n
