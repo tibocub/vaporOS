@@ -35,6 +35,18 @@ endif
 ifneq ($(CONFIG_VAPOROS_VLR_NET),)
 VLR_MODS += vapor.stream vapor.netraw vapor.net
 endif
+ifneq ($(CONFIG_VAPOROS_VLR_TLS),)
+VLR_MODS += vapor.tlsraw vapor.tls
+endif
+ifneq ($(CONFIG_VAPOROS_VLR_HTTP),)
+VLR_MODS += std.http
+endif
+ifneq ($(CONFIG_VAPOROS_VLR_SIGN),)
+VLR_MODS += vapor.sign
+endif
+ifneq ($(CONFIG_VAPOROS_VLR_REPL),)
+VLR_MODS += vapor.repl
+endif
 ifneq ($(CONFIG_VAPOROS_VLR_LFS),)
 VLR_MODS += lfs
 endif

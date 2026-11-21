@@ -70,6 +70,27 @@ config VAPOROS_VLR_NET
 		Needs a NuttX network stack (CONFIG_NET with sockets). The RP2040 images have none yet; the sim needs usrsock or a
 		network device. Name resolution blocks the whole task while it runs.
 
+config VAPOROS_VLR_TLS
+	bool "vapor.tls -- TLS client (BearSSL, ../BearSSL), certificate and host name always verified"
+	depends on VAPOROS_VLR_NET
+	default n
+	---help---
+		About 390 KB of code: for boards with a network and room (the sim), not for the RP2040. Needs a source of random numbers
+		(/dev/urandom) and a PEM bundle of trusted roots (opts.cafile or $VLR_CA_FILE).
+
+config VAPOROS_VLR_HTTP
+	bool "std.http -- HTTP/1.1 client (pure Lua)"
+	depends on VAPOROS_VLR_NET
+	default n
+
+config VAPOROS_VLR_SIGN
+	bool "vapor.sign -- ed25519 signature verification (../Monocypher), for vpm's signed index"
+	default n
+
+config VAPOROS_VLR_REPL
+	bool "vapor.repl -- the interactive prompt (vlr with no script, or vlr -i)"
+	default y
+
 config VAPOROS_VLR_LFS
 	bool "lfs -- LuaFileSystem (../luafilesystem)"
 	default n
